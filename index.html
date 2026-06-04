@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#070a12" />
+<title>Tesseract · 4D Rubik's Cube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+
+    <!-- soft atmospheric layers handled in CSS -->
+    <div class="grain"></div>
+
+    <!-- Top bar -->
+    <header class="hud hud-top">
+      <div class="brand">
+        <div class="logo">
+          <span class="logo-mark"></span>
+        </div>
+        <div class="brand-text">
+          <h1>TESSERACT</h1>
+          <p>4-dimensional cube · 3<sup>4</sup></p>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-label">Time</span>
+          <span class="stat-value" id="time">0:00</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-label">Moves</span>
+          <span class="stat-value" id="moves">0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Primary actions -->
+    <div class="hud hud-actions">
+      <button class="btn btn-primary" id="btn-scramble" title="Scramble (S)">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M18 4l3 3-3 3M21 7H9a4 4 0 0 0-4 4M6 20l-3-3 3-3M3 17h12a4 4 0 0 0 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Scramble</span>
+      </button>
+      <button class="btn" id="btn-undo" title="Undo (U)" disabled>
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M9 7L4 12l5 5M4 12h11a5 5 0 0 1 0 10h-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Undo</span>
+      </button>
+      <button class="btn" id="btn-reset" title="Reset (R)">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Reset</span>
+      </button>
+    </div>
+
+    <!-- 4D rotation controls -->
+    <aside class="hud hud-rot">
+      <div class="panel-title">
+        <span>4D rotation</span>
+        <button class="mini-help" id="btn-help" title="Help">?</button>
+      </div>
+      <p class="panel-sub">Spin the hypercube through the&nbsp;4th dimension to reach every cell.</p>
+      <div class="rot-grid">
+        <button class="rbtn" data-rot="xw" data-dir="1">XW<span>＋</span></button>
+        <button class="rbtn" data-rot="xw" data-dir="-1">XW<span>－</span></button>
+        <button class="rbtn" data-rot="yw" data-dir="1">YW<span>＋</span></button>
+        <button class="rbtn" data-rot="yw" data-dir="-1">YW<span>－</span></button>
+        <button class="rbtn" data-rot="zw" data-dir="1">ZW<span>＋</span></button>
+        <button class="rbtn" data-rot="zw" data-dir="-1">ZW<span>－</span></button>
+      </div>
+      <button class="btn btn-ghost btn-wide" id="btn-view-reset">Reset view</button>
+    </aside>
+
+    <!-- Twist dock (appears when a cell is selected) -->
+    <section class="hud hud-dock" id="dock" data-empty="true">
+      <div class="dock-empty">
+        <div class="dock-hint-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5L19 19M19 5l-2.5 2.5M7.5 16.5L5 19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        </div>
+        <p>Click a tile to select its <b>cell</b>, then twist.</p>
+      </div>
+
+      <div class="dock-active">
+        <div class="dock-head">
+          <span class="cell-chip"><i id="cell-swatch"></i><span id="cell-name">Cell</span></span>
+          <button class="dock-close" id="dock-close" title="Deselect">✕</button>
+        </div>
+        <div class="twist-rows" id="twist-rows"><!-- generated --></div>
+      </div>
+    </section>
+
+    <!-- Color legend -->
+    <aside class="hud hud-legend" id="legend">
+      <div class="panel-title legend-title">
+        <span>Cells</span>
+        <button class="mini-help" id="legend-toggle" title="Toggle">–</button>
+      </div>
+      <div class="legend-grid" id="legend-grid"><!-- generated --></div>
+    </aside>
+
+    <!-- Win overlay -->
+    <div class="overlay" id="win" hidden>
+      <div class="win-card">
+        <div class="win-glow"></div>
+        <div class="win-mark">
+          <svg viewBox="0 0 24 24" width="34" height="34"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2>Solved</h2>
+        <p class="win-sub">The hypercube is whole again.</p>
+        <div class="win-stats">
+          <div><span class="ws-label">Time</span><span class="ws-val" id="win-time">0:00</span></div>
+          <div><span class="ws-label">Moves</span><span class="ws-val" id="win-moves">0</span></div>
+        </div>
+        <button class="btn btn-primary btn-wide" id="win-again">Play again</button>
+      </div>
+    </div>
+
+    <!-- Help overlay -->
+    <div class="overlay" id="help" hidden>
+      <div class="help-card">
+        <button class="dock-close help-close" id="help-close" title="Close">✕</button>
+        <h2>How to play</h2>
+        <p class="help-lead">A 4D Rubik's cube has <b>8 cubic cells</b> instead of 6 flat faces. It's drawn as a small cube nested inside a large one — the six “tunnels” between them are the other six cells. Make every cell a single colour.</p>
+        <ul class="help-list">
+          <li><span class="kbd">Drag</span> Orbit the view in 3D</li>
+          <li><span class="kbd">Scroll</span> Zoom</li>
+          <li><span class="kbd">Click</span> a tile to select its cell</li>
+          <li><span class="kbd">Twist panel</span> Turn the selected cell (or keys <span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span>, hold <span class="kbd">⇧</span> to reverse)</li>
+          <li><span class="kbd">4D rotation</span> Bring hidden cells into view</li>
+          <li><span class="kbd">S</span> Scramble · <span class="kbd">U</span> Undo · <span class="kbd">R</span> Reset</li>
+        </ul>
+        <button class="btn btn-primary btn-wide" id="help-ok">Got it</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
