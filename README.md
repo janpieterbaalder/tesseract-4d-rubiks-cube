@@ -4,6 +4,8 @@ A minimalist, dark-mode puzzle: solve a **genuinely 4-dimensional** Rubik's cube
 (the 3⁴ hypercube) inside a 3D environment. Pure HTML/CSS/JavaScript on a single
 `<canvas>` — **no build step, no dependencies**.
 
+**▶ Play it live: https://janpieterbaalder.github.io/tesseract-4d-rubiks-cube/**
+
 ![Tesseract](preview.png)
 
 ## Run it
