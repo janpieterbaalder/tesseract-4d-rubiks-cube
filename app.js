@@ -39,13 +39,16 @@ const CELL_LABEL = {
   'Z+': 'Front',   'Z-': 'Back',
 };
 
-// geometry
+// geometry constants (baked frustum look — see HANDOFF.md for what each knob does)
 const G = 1.0;          // lattice spacing
-const B = 1.52;         // cell-boundary distance along the normal axis (more = cells pushed further apart)
-const FACE_SHRINK = 0.42; // pulls each cell's stickers toward the cell centre (lower = more gap between cells)
-const STICKER_HALF = 0.19; // half-size of a sticker cube in its in-cell axes
-const V4D = 4.35;       // 4D camera distance (controls inner/outer size ratio)
-const V3D = 6.6;        // 3D camera distance
+const B = 1.65;         // cell-boundary distance along the normal axis
+const FACE_SHRINK = 0.33; // lateral cell size (X/Y/Z in-cell axes): smaller -> slimmer arms + bigger gaps
+const FACE_SHRINK_W = 0.60; // W in-cell axis spread: larger -> side cells stretch along W -> stronger frustum taper
+const CENTER_SHRINK = 0.44; // the inner/outer W-cells (the nested central cube): larger -> bigger central cube
+const STICKER_HALF = 0.115; // sticker half-size in its in-cell axes (smaller = bigger see-through gaps)
+const V4D = 2.05;       // 4D camera distance — small = strong perspective = dramatic frustums (MagicCube4D look)
+const V3D = 7.6;        // 3D camera distance
+const PROJ_MIN = 0.34;  // clamp on (V4D - w) so strong 4D perspective can't blow up during 4D rotation
 
 // ----------------------------------------------------------------- math (4x4)
 const I4 = () => [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
@@ -85,6 +88,48 @@ function rotFloat(i, j, a) {
   const c = Math.cos(a), s = Math.sin(a);
   M[i][i] = c; M[j][j] = c;
   M[i][j] = -s; M[j][i] = s;
+  return M;
+}
+// rotation by angle a about a unit axis u3 living in the 3 in-cell axes `inAx`
+// (Rodrigues in that 3-space, identity on the 4th/cell axis). Used for edge (180)
+// and corner (120) grips, which turn about an edge- or body-diagonal of the cell.
+function rotAxis(inAx, u3, a) {
+  const c = Math.cos(a), s = Math.sin(a), t = 1 - c;
+  const [x, y, z] = u3;
+  const R3 = [
+    [c + x*x*t,   x*y*t - z*s, x*z*t + y*s],
+    [y*x*t + z*s, c + y*y*t,   y*z*t - x*s],
+    [z*x*t - y*s, z*y*t + x*s, c + z*z*t],
+  ];
+  const M = I4();
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) M[inAx[i]][inAx[j]] = R3[i][j];
+  return M;
+}
+// integer version: the grip angles (±90/±120/180) about lattice axes land on a
+// signed-permutation matrix, so rounding gives the exact discrete move.
+function rotAxisInt(inAx, u3, a) {
+  const M = rotAxis(inAx, u3, a);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) M[i][j] = Math.round(M[i][j]);
+  return M;
+}
+
+// 4D vector helpers + a rotation that carries unit vector f onto unit vector t.
+function dot4(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3]; }
+function norm4(a) { const l = Math.hypot(a[0],a[1],a[2],a[3]) || 1; return [a[0]/l,a[1]/l,a[2]/l,a[3]/l]; }
+// Rotation matrix carrying unit vector f toward unit vector t by `frac` of the angle
+// between them, in the plane they span (identity on the orthogonal complement).
+// frac=1 sends f exactly onto t. Used for view reorientation (clicked cell -> centre),
+// exactly like MagicCube4D's ctrl-click "rotate a cell to the -W centre".
+function rotBetween(f, t, frac) {
+  const c = Math.max(-1, Math.min(1, dot4(f, t)));
+  const theta = Math.acos(c) * frac;
+  let g = [t[0]-c*f[0], t[1]-c*f[1], t[2]-c*f[2], t[3]-c*f[3]]; // t made perpendicular to f
+  const gl = Math.hypot(g[0],g[1],g[2],g[3]);
+  if (gl < 1e-9) return I4();           // parallel/anti-parallel: no unique plane
+  g = [g[0]/gl,g[1]/gl,g[2]/gl,g[3]/gl];
+  const ca = Math.cos(theta), sa = Math.sin(theta), M = I4();
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++)
+    M[i][j] += (ca-1)*(f[i]*f[j] + g[i]*g[j]) + sa*(g[i]*f[j] - f[i]*g[j]);
   return M;
 }
 
@@ -142,7 +187,9 @@ function buildPieces() {
   }
 }
 
-// 8 cube corners indexed by 3 bits over the in-cell axes; 6 faces as index quads
+// 8 cube corners indexed by 3 bits over the in-cell axes; 6 faces as index quads.
+// Each face records its LOCAL axis k (0..2) so a click on it knows which in-cell
+// axis to twist about (the twist plane is then the other two in-cell axes).
 function buildFaceTopology() {
   FACE_KEYS.length = 0;
   // for each of the 3 local axes k, two faces (bit=0 / bit=1)
@@ -157,7 +204,7 @@ function buildFaceTopology() {
         idx |= v   << o1;
         return idx;
       });
-      FACE_KEYS.push(quad);
+      FACE_KEYS.push({ q: quad, axis: k });
     }
   }
 }
@@ -186,7 +233,10 @@ function stickerCorners(cur, fa, fs) {
     for (let t = 0; t < 3; t++) {
       const ax = inAx[t];
       const bit = (b >> t) & 1;
-      c[ax] = cur[ax] * G * FACE_SHRINK + (bit ? STICKER_HALF : -STICKER_HALF);
+      // W-cells (inner/outer nested cubes) get a uniform, slightly larger spread;
+      // side cells stretch their W in-cell axis for the frustum taper.
+      const shr = (fa === W) ? CENTER_SHRINK : (ax === W ? FACE_SHRINK_W : FACE_SHRINK);
+      c[ax] = cur[ax] * G * shr + (bit ? STICKER_HALF : -STICKER_HALF);
     }
     out.push(c);
   }
@@ -198,6 +248,13 @@ const history = [];
 
 function commitTwist(d, sd, i, j, dir) {
   const R = rotInt(i, j, dir);
+  applyToSlab(d, sd, R);
+}
+// general grip: rotate the cell's 27-piece slab by the integer rotation about u3
+function commitTwistAxis(d, sd, inAx, u3, theta) {
+  applyToSlab(d, sd, rotAxisInt(inAx, u3, theta));
+}
+function applyToSlab(d, sd, R) {
   for (const p of pieces) {
     if (p.cur[d] === sd) {
       p.cur = matVec4i(R, p.cur);
@@ -206,12 +263,15 @@ function commitTwist(d, sd, i, j, dir) {
   }
 }
 
+// Visual solve, like MagicCube4D: every cell is a single colour, i.e. every
+// sticker sits on its home-coloured cell. Invisible orientations of the 1- and
+// 2-sticker pieces are NOT required (those carry no visible information).
 function isSolved() {
   for (const p of pieces) {
-    if (p.cur[0]!==p.solved[0] || p.cur[1]!==p.solved[1] ||
-        p.cur[2]!==p.solved[2] || p.cur[3]!==p.solved[3]) return false;
-    const r = p.rot;
-    if (r[0][0]!==1 || r[1][1]!==1 || r[2][2]!==1 || r[3][3]!==1) return false;
+    for (const st of p.stickers) {
+      const { fa, fs } = facingOf(p, st);
+      if (fa !== st.axis || fs !== (p.solved[st.axis] > 0 ? 1 : -1)) return false;
+    }
   }
   return true;
 }
@@ -223,8 +283,8 @@ function planesFor(d) {
 }
 
 // ----------------------------------------------------------------- state / UI
-let view4 = matMul4(rotFloat(Y, W, 0.34), rotFloat(X, W, 0.46)); // initial 4D tilt
-let yaw = 0.62, pitch = 0.46;                                    // 3D orbit
+let view4 = I4();             // identity: the +W cell faces the 4D camera and is culled, revealing the nested cells
+let yaw = -0.785, pitch = 0.615;                                 // 3D orbit — looks down the body diagonal (symmetric 6-arm pinwheel)
 let view3 = mat3FromYawPitch(yaw, pitch);
 let zoom = 1.0;
 
@@ -255,10 +315,10 @@ function resize() {
     // narrow screens: width is the limiting dimension and the cube spreads wide,
     // so scale to width and lift the centre above the bottom control stack.
     cy = cssH * 0.43;
-    scale = cssW * 0.150;
+    scale = cssW * 0.142;
   } else {
     cy = cssH / 2 + 6;
-    scale = Math.min(cssW, cssH) * 0.205;
+    scale = Math.min(cssW, cssH) * 0.160;
   }
 }
 window.addEventListener('resize', resize);
@@ -268,7 +328,7 @@ window.addEventListener('resize', resize);
 function project(c4, animMat) {
   let w = animMat ? matVec4(animMat, c4) : c4;
   w = matVec4(view4, w);
-  const s4 = V4D / (V4D - w[3]);
+  const s4 = V4D / Math.max(V4D - w[3], PROJ_MIN);
   const p = [w[0]*s4, w[1]*s4, w[2]*s4];
   const cam = matVec3(view3, p);
   const s3 = V3D / (V3D - cam[2]);
@@ -284,6 +344,7 @@ const LIGHT = norm3([-0.35, 0.62, 0.78]);
 
 // ----------------------------------------------------------------- render
 let pickFaces = [];   // {poly, sticker, piece, cz} for hit-testing (front first)
+let frontCell = null; // the currently culled (hidden) cell {fa, fs}
 
 function render() {
   ctx.clearRect(0, 0, cssW, cssH);
@@ -298,7 +359,18 @@ function render() {
 
   const faces = [];
   const animSet = anim && anim.type === 'twist' ? anim.set : null;
-  const animMat = animSet ? rotFloat(anim.i, anim.j, anim.theta) : null;
+  const animMat = animSet
+    ? (anim.mode === 'axis' ? rotAxis(anim.inAx, anim.u3, anim.angle) : rotFloat(anim.i, anim.j, anim.angle))
+    : null;
+
+  // The cell facing the 4D camera (largest projected +w) is hidden so we can see
+  // into the structure — exactly how MagicCube4D opens up the hypercube.
+  let cullFa = 3, cullFs = 1, cullBest = -Infinity;
+  for (let fa = 0; fa < 4; fa++) for (const fs of [1, -1]) {
+    const wv = view4[3][fa] * fs;
+    if (wv > cullBest) { cullBest = wv; cullFa = fa; cullFs = fs; }
+  }
+  frontCell = { fa: cullFa, fs: cullFs };
 
   for (const piece of pieces) {
     const inSlab = selected && piece.cur[selected.d] === selected.sd;
@@ -306,6 +378,8 @@ function render() {
 
     for (const st of piece.stickers) {
       const { fa, fs } = facingOf(piece, st);
+      if (fa === cullFa && fs === cullFs) continue; // hidden front cell
+      const inAx = [0,1,2,3].filter(a => a !== fa); // this cell's 3 in-cell axes
       const corners = stickerCorners(piece.cur, fa, fs);
       const P = corners.map(c => project(c, useAnim));
 
@@ -315,7 +389,8 @@ function render() {
       ccx /= 8; ccy /= 8; ccz /= 8;
       const center = [ccx, ccy, ccz];
 
-      for (const q of FACE_KEYS) {
+      for (const face of FACE_KEYS) {
+        const q = face.q;
         const a = P[q[0]], b = P[q[1]], c = P[q[2]], d = P[q[3]];
         let n = cross3(sub3(b.cam, a.cam), sub3(c.cam, a.cam));
         // make normal point outward (away from sticker centre)
@@ -333,6 +408,7 @@ function render() {
         faces.push({
           poly: [[a.x,a.y],[b.x,b.y],[c.x,c.y],[d.x,d.y]],
           depth, cubeCz: ccz, shade, rgb: st.rgb, inSlab, piece, sticker: st,
+          twistAxis: inAx[face.axis], // global in-cell axis this face turns about
         });
       }
     }
@@ -380,18 +456,32 @@ function render() {
   }
 
   // build pick list (front first)
-  pickFaces = faces.slice().reverse().map(f => ({ poly: f.poly, sticker: f.sticker, piece: f.piece }));
+  pickFaces = faces.slice().reverse().map(f => ({ poly: f.poly, sticker: f.sticker, piece: f.piece, twistAxis: f.twistAxis }));
 }
 
 // ----------------------------------------------------------------- animation
 function ease(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
 
+// 90-degree plane twist (dock / keyboard / face-grip / scramble-undo)
 function startTwist(d, sd, i, j, dir, opts = {}) {
   if (anim) return false;
-  const set = new Set(pieces.filter(p => p.cur[d] === sd));
   anim = {
-    type: 'twist', d, sd, i, j, dir, set,
-    t: 0, dur: opts.dur || 250, theta: 0,
+    type: 'twist', mode: 'plane', d, sd, i, j, dir,
+    set: new Set(pieces.filter(p => p.cur[d] === sd)),
+    t: 0, dur: opts.dur || 250, angle: 0, target: dir * Math.PI / 2,
+    record: opts.record !== false,
+    countDelta: opts.countDelta == null ? 1 : opts.countDelta,
+    onDone: opts.onDone,
+  };
+  return true;
+}
+// general grip twist about axis u3 (edge = 180, corner = +/-120) by signed `theta`
+function startTwistAxis(d, sd, inAx, u3, theta, opts = {}) {
+  if (anim) return false;
+  anim = {
+    type: 'twist', mode: 'axis', d, sd, inAx, u3, theta,
+    set: new Set(pieces.filter(p => p.cur[d] === sd)),
+    t: 0, dur: opts.dur || (Math.abs(theta) > 2.2 ? 300 : 260), angle: 0, target: theta,
     record: opts.record !== false,
     countDelta: opts.countDelta == null ? 1 : opts.countDelta,
     onDone: opts.onDone,
@@ -401,7 +491,23 @@ function startTwist(d, sd, i, j, dir, opts = {}) {
 
 function startViewRot(i, j, dir) {
   if (anim) return false;
-  anim = { type: 'view', i, j, dir, t: 0, dur: 420, base: view4 };
+  anim = { type: 'view', mode: 'plane', i, j, dir, t: 0, dur: 420, base: view4 };
+  return true;
+}
+// Reorient the 4D view so the clicked cell rotates to the centre (the small nested
+// cube = the -W axis, "really the one furthest from the 4D viewer") — exactly like
+// MagicCube4D's ctrl-click. reverse=true sends the central cell out to the clicked
+// spot instead (MagicCube4D's right-ctrl-click). Never changes the puzzle state.
+function startCenterCell(d, sd, reverse) {
+  if (anim) return false;
+  const n = [0,0,0,0]; n[d] = sd;
+  const cur = norm4(matVec4(view4, n));   // where this cell's normal points in view space
+  const ctr = [0, 0, 0, -1];              // -W: the central (smallest, furthest) cube
+  const from = reverse ? ctr : cur;
+  const to   = reverse ? cur : ctr;
+  const theta = Math.acos(Math.max(-1, Math.min(1, dot4(from, to))));
+  if (theta < 1e-3) return false;         // already centred
+  anim = { type: 'view', mode: 'geo', from, to, base: view4, t: 0, dur: 460 };
   return true;
 }
 
@@ -414,26 +520,26 @@ function tick(now) {
     const k = Math.min(1, anim.t / anim.dur);
     const e = ease(k);
     if (anim.type === 'twist') {
-      anim.theta = e * anim.dir * Math.PI / 2;
+      anim.angle = e * anim.target;
       if (k >= 1) {
-        commitTwist(anim.d, anim.sd, anim.i, anim.j, anim.dir);
+        if (anim.mode === 'axis') {
+          commitTwistAxis(anim.d, anim.sd, anim.inAx, anim.u3, anim.theta);
+          if (anim.record) history.push({ mode:'axis', d:anim.d, sd:anim.sd, inAx:anim.inAx, u3:anim.u3, theta:anim.theta });
+        } else {
+          commitTwist(anim.d, anim.sd, anim.i, anim.j, anim.dir);
+          if (anim.record) history.push({ mode:'plane', d:anim.d, sd:anim.sd, i:anim.i, j:anim.j, dir:anim.dir });
+        }
         const rec = anim.record, cd = anim.countDelta;
-        if (anim.record) history.push({ d:anim.d, sd:anim.sd, i:anim.i, j:anim.j, dir:anim.dir });
         const done = anim.onDone;
         anim = null;
         afterMove(cd, rec);
         if (done) done();
       }
     } else if (anim.type === 'view') {
-      view4 = matMul4(rotFloat(anim.i, anim.j, e * anim.dir * Math.PI/2), anim.base);
+      if (anim.mode === 'geo') view4 = matMul4(rotBetween(anim.from, anim.to, e), anim.base);
+      else view4 = matMul4(rotFloat(anim.i, anim.j, e * anim.dir * Math.PI/2), anim.base);
       if (k >= 1) { anim = null; }
     }
-  }
-
-  // gentle idle drift on the landing screen (before the first scramble)
-  if (!scrambledOnce && !drag && !anim) {
-    yaw += dt * 0.00011;
-    view3 = mat3FromYawPitch(yaw, pitch);
   }
 
   if (timing) updateClock();
@@ -501,7 +607,8 @@ function doReset() {
 function doUndo() {
   if (anim || history.length === 0) return;
   const m = history.pop();
-  startTwist(m.d, m.sd, m.i, m.j, -m.dir, { record: false, countDelta: -1 });
+  if (m.mode === 'axis') startTwistAxis(m.d, m.sd, m.inAx, m.u3, -m.theta, { record: false, countDelta: -1 });
+  else startTwist(m.d, m.sd, m.i, m.j, -m.dir, { record: false, countDelta: -1 });
 }
 
 function win() {
@@ -567,10 +674,40 @@ function pickAt(px, py) {
   for (const f of pickFaces) {
     if (pointInQuad(px, py, f.poly)) {
       const { fa, fs } = facingOf(f.piece, f.sticker);
-      return { d: fa, sd: fs };
+      return { d: fa, sd: fs, faceAxis: f.twistAxis, piece: f.piece };
     }
   }
   return null;
+}
+
+// Turn a clicked block into a twist, MagicCube4D-style: the grip depends on WHICH
+// block of the 3x3x3 cell you hit (its in-cell position) ->
+//   face block (1 nonzero in-cell coord) : 90 deg about that face axis
+//   edge block (2 nonzero)               : 180 deg about the edge diagonal
+//   corner block (3 nonzero)             : 120 deg about the body diagonal
+//   centre block (0 nonzero)             : 90 deg about the clicked face axis
+// `sense` is -1 for a plain click (CCW) and +1 for right/Shift (CW); it only
+// matters for the 90 and 120 grips (180 is its own inverse). Also selects the cell.
+function twistFromPick(hit, sense) {
+  const d = hit.d, sd = hit.sd;
+  selectCell(d, sd);
+  if (anim) return;
+  const inAx = [0,1,2,3].filter(a => a !== d);   // the cell's 3 in-cell axes
+  const g = inAx.map(ax => hit.piece.cur[ax]);    // in-cell position, each in {-1,0,1}
+  const nz = [];
+  for (let t = 0; t < 3; t++) if (g[t] !== 0) nz.push(t);
+
+  if (nz.length === 2) {                          // edge -> 180 about the edge diagonal
+    const n = Math.hypot(g[0], g[1], g[2]);
+    startTwistAxis(d, sd, inAx, [g[0]/n, g[1]/n, g[2]/n], Math.PI);
+  } else if (nz.length === 3) {                   // corner -> 120 about the body diagonal
+    const n = Math.hypot(g[0], g[1], g[2]);
+    startTwistAxis(d, sd, inAx, [g[0]/n, g[1]/n, g[2]/n], sense * 2 * Math.PI / 3);
+  } else {                                        // face block (or centre) -> 90 plane twist
+    const k = (nz.length === 1) ? inAx[nz[0]] : hit.faceAxis;
+    const [i, j] = inAx.filter(a => a !== k);
+    startTwist(d, sd, i, j, sense);
+  }
 }
 
 // ----------------------------------------------------------------- input
@@ -579,6 +716,8 @@ let drag = null;            // single-pointer orbit / tap state
 let pinch = null;           // two-pointer pinch state
 const DRAG_THRESH = 7;
 const ZOOM_MIN = 0.5, ZOOM_MAX = 2.8;
+const LONG_PRESS_MS = 420;   // hold a cell this long -> rotate it to the centre (touch-friendly)
+const ROT4D_SENS = 0.0085;   // shift-drag free 4D rotation: radians per pixel
 
 function twoPointerDist() {
   const p = [...pointers.values()];
@@ -592,9 +731,18 @@ canvas.addEventListener('pointerdown', (e) => {
 
   if (pointers.size === 1) {
     drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY,
-             yaw0: yaw, pitch0: pitch, moved: false, button: e.button };
+             yaw0: yaw, pitch0: pitch, base4: view4.map(r => r.slice()),
+             shift: e.shiftKey, ctrl: e.ctrlKey, moved: false, consumed: false, button: e.button };
     pinch = null;
+    // hold (long-press / mouse hold) on a cell -> rotate that cell to the centre:
+    // a touch-friendly equivalent of MagicCube4D's ctrl-click.
+    drag.lpTimer = setTimeout(() => {
+      if (!drag || drag.moved || drag.consumed || anim) return;
+      const hit = pickAt(drag.x0, drag.y0);
+      if (hit && startCenterCell(hit.d, hit.sd, false)) { drag.consumed = true; toast('Cell → centre'); }
+    }, LONG_PRESS_MS);
   } else if (pointers.size === 2) {
+    if (drag && drag.lpTimer) clearTimeout(drag.lpTimer);
     drag = null;                                   // 2nd finger -> pinch, cancel tap/orbit
     pinch = { d0: twoPointerDist(), zoom0: zoom };
   }
@@ -611,11 +759,20 @@ canvas.addEventListener('pointermove', (e) => {
 
   if (drag && e.pointerId === drag.id) {
     const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
-    if (!drag.moved && Math.hypot(dx, dy) > DRAG_THRESH) drag.moved = true;
-    if (drag.moved) {
-      yaw = drag.yaw0 + dx * 0.008;
-      pitch = Math.max(-1.35, Math.min(1.35, drag.pitch0 + dy * 0.008));
-      view3 = mat3FromYawPitch(yaw, pitch);
+    if (!drag.moved && Math.hypot(dx, dy) > DRAG_THRESH) {
+      drag.moved = true;
+      if (drag.lpTimer) clearTimeout(drag.lpTimer);   // a drag is not a long-press
+    }
+    if (drag.moved && !drag.consumed) {
+      if (drag.shift) {
+        // free 4D rotation, à la MagicCube4D's shift-drag: dx -> X-W plane, dy -> Y-W plane
+        const d4 = matMul4(rotFloat(X, W, dx * ROT4D_SENS), rotFloat(Y, W, -dy * ROT4D_SENS));
+        view4 = matMul4(d4, drag.base4);
+      } else {
+        yaw = drag.yaw0 + dx * 0.008;
+        pitch = Math.max(-1.35, Math.min(1.35, drag.pitch0 + dy * 0.008));
+        view3 = mat3FromYawPitch(yaw, pitch);
+      }
     }
   } else if (pointers.size === 0) {
     const hit = pickAt(e.clientX, e.clientY);      // hover feedback (mouse only)
@@ -625,6 +782,7 @@ canvas.addEventListener('pointermove', (e) => {
 
 function onPointerUp(e) {
   const wasDrag = (drag && e.pointerId === drag.id) ? drag : null;
+  if (wasDrag && wasDrag.lpTimer) clearTimeout(wasDrag.lpTimer);
   pointers.delete(e.pointerId);
   try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
 
@@ -633,13 +791,27 @@ function onPointerUp(e) {
       pinch = null;
       if (pointers.size === 1) {                   // one finger left -> resume orbit (no tap)
         const [id, p] = [...pointers.entries()][0];
-        drag = { id, x0: p.x, y0: p.y, yaw0: yaw, pitch0: pitch, moved: true, button: 0 };
+        drag = { id, x0: p.x, y0: p.y, yaw0: yaw, pitch0: pitch, base4: view4.map(r => r.slice()),
+                 shift: false, ctrl: false, moved: true, consumed: false, button: 0 };
       }
     }
   } else if (wasDrag) {
-    if (!wasDrag.moved && wasDrag.button === 0) {   // a clean tap -> select / deselect
+    if (wasDrag.consumed) {
+      // long-press already rotated a cell to the centre; nothing more to do
+    } else if (!wasDrag.moved) {
+      // a clean tap. Ctrl-click / middle-click -> rotate the cell to the centre, exactly
+      // like MagicCube4D. Otherwise twist it (left/tap = CCW, right or shift = CW).
+      // Empty space deselects. The dock stays as a fallback / fine plane control.
       const hit = pickAt(e.clientX, e.clientY);
-      if (hit) selectCell(hit.d, hit.sd); else deselect();
+      if (hit) {
+        if (wasDrag.ctrl || wasDrag.button === 1) {
+          startCenterCell(hit.d, hit.sd, wasDrag.button === 2);  // right+ctrl reverses
+        } else if (wasDrag.button === 0 || wasDrag.button === 2) {
+          twistFromPick(hit, (wasDrag.button === 2 || wasDrag.shift) ? 1 : -1);
+        }
+      } else {
+        deselect();
+      }
     }
     drag = null;
   }
@@ -653,6 +825,9 @@ canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * (e.deltaY < 0 ? 1.08 : 0.926)));
 }, { passive: false });
+
+// right-click is "twist reverse"; stop the browser context menu from popping up
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // keyboard
 window.addEventListener('keydown', (e) => {
@@ -694,16 +869,20 @@ const el = {
 };
 
 el.scramble.addEventListener('click', () => doScramble());
+document.querySelectorAll('.btn-mini').forEach(b => {
+  b.addEventListener('click', () => { if (!anim) doScramble(+b.dataset.scramble); });
+});
 el.undo.addEventListener('click', doUndo);
 el.reset.addEventListener('click', doReset);
 el.dockClose.addEventListener('click', deselect);
 el.viewReset.addEventListener('click', () => {
   if (anim) return;
-  yaw = 0.62; pitch = 0.46; zoom = 1.0;
+  yaw = -0.785; pitch = 0.615; zoom = 1.0;
   view3 = mat3FromYawPitch(yaw, pitch);
-  view4 = matMul4(rotFloat(Y, W, 0.34), rotFloat(X, W, 0.46));
+  view4 = I4();
 });
 document.getElementById('btn-help').addEventListener('click', () => show(el.help));
+document.getElementById('btn-help-top').addEventListener('click', () => show(el.help));
 document.getElementById('help-close').addEventListener('click', () => hide(el.help));
 document.getElementById('help-ok').addEventListener('click', () => hide(el.help));
 el.winAgain.addEventListener('click', () => { hide(el.win); doScramble(); });
@@ -748,6 +927,8 @@ buildPieces();
 buildFaceTopology();
 buildLegend();
 resize();
+// show the how-to overlay once per browser, so new players see the controls
+try { if (!localStorage.getItem('tess_help_seen')) { show(el.help); localStorage.setItem('tess_help_seen', '1'); } } catch (_) {}
 requestAnimationFrame(tick);
 
 })();

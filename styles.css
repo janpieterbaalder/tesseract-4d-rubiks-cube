@@ -26,6 +26,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body { height: 100%; }
+html { background: var(--bg-0); }
 
 body {
   font-family: var(--font);
@@ -50,6 +51,9 @@ body {
   height: 100%;
   display: block;
   touch-action: none;
+  -webkit-touch-callout: none;   /* no iOS callout on long-press (= rotate cell to centre) */
+  -webkit-user-select: none;
+  user-select: none;
   cursor: grab;
 }
 #scene.grabbing { cursor: grabbing; }
@@ -169,13 +173,34 @@ body {
 
 .hud-actions {
   left: 50%; bottom: 26px; transform: translateX(-50%);
-  display: flex; gap: 10px;
+  display: flex; align-items: center; gap: 10px;
   padding: 8px;
   border-radius: 16px;
   background: var(--glass);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
 }
+
+/* quick-scramble segmented group: 1 / 2 / 3 moves */
+.scramble-mini {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 40px; padding: 0 6px 0 11px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(20, 28, 48, 0.35);
+}
+.mini-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ink-faint); margin-right: 1px;
+}
+.btn-mini {
+  width: 32px; height: 30px; padding: 0;
+  justify-content: center;
+  font-size: 13.5px; font-weight: 650; font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  border-radius: 9px;
+}
+.btn-mini:hover { color: var(--ink); }
 
 /* ----------------------------------------------------------- panels */
 .panel-title {
@@ -193,6 +218,15 @@ body {
   cursor: pointer; transition: .2s;
 }
 .mini-help:hover { color: var(--ink); border-color: var(--line-strong); }
+
+/* always-visible "how to play" button in the top bar (desktop + mobile) */
+.top-right { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+.help-top {
+  width: 36px; height: 36px; border-radius: 11px; flex: none;
+  font-size: 15px; font-weight: 650; color: var(--ink-dim);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 22px -14px rgba(0,0,0,0.8);
+}
+.help-top:hover { color: var(--ink); transform: translateY(-1px); }
 
 .hud-rot {
   top: 96px; right: 22px; width: 220px;
@@ -343,12 +377,20 @@ body {
 .help-card h2 { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 10px; }
 .help-lead { font-size: 13px; line-height: 1.6; color: var(--ink-dim); margin-bottom: 16px; }
 .help-lead b { color: var(--ink); }
-.help-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
-.help-list li { font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 10px; }
+.help-list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin: 0; }
+.help-list li { font-size: 12.5px; line-height: 1.65; color: var(--ink-dim); }
+.help-card b { color: var(--ink); }
 .help-close { position: absolute; top: 16px; right: 16px; }
+.help-section { margin-bottom: 15px; }
+.help-section:last-of-type { margin-bottom: 20px; }
+.help-tag {
+  display: block; margin-bottom: 7px;
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent-2);
+}
+.help-or { color: var(--ink-faint); font-size: 11px; }
 .kbd {
   display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 7px;
-  font-size: 11px; font-weight: 600; color: var(--ink);
+  font-size: 11px; font-weight: 600; color: var(--ink); vertical-align: middle; margin: 0 1px;
   background: var(--glass-2); border: 1px solid var(--line-strong); border-radius: 7px;
   box-shadow: 0 2px 0 rgba(0,0,0,0.3);
 }
@@ -399,6 +441,9 @@ body {
     justify-content: center; gap: 8px;
   }
   .hud-actions .btn { flex: 1; justify-content: center; height: 48px; padding: 0 8px; }
+  .scramble-mini { flex: 1; height: 48px; padding: 0 5px; gap: 5px; }
+  .scramble-mini .mini-label { display: none; }
+  .hud-actions .btn-mini { flex: 1; width: auto; height: 40px; }
 
   /* 4D rotation -> compact horizontal strip above the action bar */
   .hud-rot {
