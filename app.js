@@ -41,17 +41,17 @@ const CELL_LABEL = {
   'Z+': 'Front',   'Z-': 'Back',
 };
 
-// geometry constants (baked frustum look — see HANDOFF.md for what each knob does)
+// geometry constants. The in-cell geometry is UNIFORM: every cell spreads its
+// 27 blocks identically along all three of its in-cell axes, and all stickers
+// share one size. All visible differences between cells (the nested centre
+// cube, the tapering tunnels) come purely from the genuine 4D perspective
+// projection — so rotating any cell into the centre reproduces exactly the
+// same shape, with no per-cell distortion.
 const G = 1.0;          // lattice spacing
 const B = 1.65;         // cell-boundary distance along the normal axis
-const FACE_SHRINK = 0.33; // lateral cell size (X/Y/Z in-cell axes): smaller -> slimmer arms + bigger gaps
-const FACE_SHRINK_W = 0.60; // W in-cell axis spread: larger -> side cells stretch along W -> stronger frustum taper
-const CENTER_SHRINK = 0.62; // the inner/outer W-cells (the nested central cube): larger -> bigger central cube
-const STICKER_HALF = 0.115; // sticker half-size in its in-cell axes (smaller = bigger see-through gaps)
-const STICKER_HALF_W = 0.175; // sticker half-size on the W-cells: the 4D projection shrinks the
-                              // nested centre cube by ~2x, so its blocks get a bigger base size
-                              // to keep the central cube visually in proportion
-const V4D = 2.05;       // 4D camera distance — small = strong perspective = dramatic frustums (MagicCube4D look)
+const CELL_SPREAD = 0.45; // in-cell lattice spread: block centres sit at 0, ±CELL_SPREAD
+const STICKER_HALF = 0.13; // sticker half-size (CELL_SPREAD - 2*STICKER_HALF = see-through gap)
+const V4D = 3.1;        // 4D camera distance — sets inner-vs-outer cell ratio and tunnel taper
 const V3D = 7.6;        // 3D camera distance
 const PROJ_MIN = 0.34;  // clamp on (V4D - w) so strong 4D perspective can't blow up during 4D rotation
 
@@ -227,11 +227,13 @@ function facingOf(piece, sticker) {
 }
 
 // the 8 corners (in 4D) of a sticker cube on cell (fa,fs) at lattice position cur.
-// In-cell coordinates are pulled toward the cell centre by FACE_SHRINK so the 8
+// In-cell coordinates are pulled toward the cell centre by CELL_SPREAD so the 8
 // cells separate and the nested 4D structure becomes visible (MagicCube4D-style).
+// The same spread and sticker size apply to every cell and every axis, so the
+// model is symmetric under all 4D view rotations: any cell moved to the centre
+// looks identical to the cell that was there before.
 function stickerCorners(cur, fa, fs) {
   const inAx = [0,1,2,3].filter(a => a !== fa);
-  const half = fa === W ? STICKER_HALF_W : STICKER_HALF;
   const out = [];
   for (let b = 0; b < 8; b++) {
     const c = [0,0,0,0];
@@ -239,10 +241,7 @@ function stickerCorners(cur, fa, fs) {
     for (let t = 0; t < 3; t++) {
       const ax = inAx[t];
       const bit = (b >> t) & 1;
-      // W-cells (inner/outer nested cubes) get a uniform, slightly larger spread;
-      // side cells stretch their W in-cell axis for the frustum taper.
-      const shr = (fa === W) ? CENTER_SHRINK : (ax === W ? FACE_SHRINK_W : FACE_SHRINK);
-      c[ax] = cur[ax] * G * shr + (bit ? half : -half);
+      c[ax] = cur[ax] * G * CELL_SPREAD + (bit ? STICKER_HALF : -STICKER_HALF);
     }
     out.push(c);
   }
@@ -541,8 +540,9 @@ function tick(now) {
         }
         const rec = anim.record, cd = anim.countDelta;
         const done = anim.onDone;
+        const mode = anim.mode;
         anim = null;
-        afterMove(cd, rec);
+        afterMove(cd, rec, mode);
         if (done) done();
       }
     } else if (anim.type === 'view') {
@@ -557,8 +557,11 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-function afterMove(countDelta, record) {
-  if (record && countDelta > 0) tutorialEvent('twist');
+function afterMove(countDelta, record, mode) {
+  if (record && countDelta > 0) {
+    tutorialEvent('twist');
+    if (mode === 'axis') tutorialEvent('twistAxis'); // edge/corner grip
+  }
   if (scrambledOnce) {
     moves = Math.max(0, moves + countDelta);
     if (!timing && !solvedState && countDelta > 0) { timing = true; startT = performance.now(); }
@@ -638,58 +641,136 @@ function win() {
 }
 
 // ----------------------------------------------------------------- tutorial
-// A guided, interactive walkthrough: each step waits for the player to actually
-// perform the action (detected via tutorialEvent hooks in the engine), then
-// auto-advances. The two practice steps scramble the real puzzle and watch for
-// isSolved(), so the player learns on the genuine mechanics, not a mock-up.
+// A guided, interactive course in 5 chapters: each action step waits for the
+// player to actually perform it (detected via tutorialEvent hooks in the
+// engine), then auto-advances. The practice steps scramble the real puzzle and
+// watch for isSolved(), so the player learns on the genuine mechanics.
+// The solving method taught in chapter 4 follows the established route for the
+// 3^4: Roice Nelson's "Ultimate Solution to a 3x3x3x3" (superliminal.com) and
+// the modern methods documented on hypercubing.xyz — two-colour pieces first,
+// then three-colour, then four-colour, finishing with the RKT technique.
 const TUT_STEPS = [
+  // ---- chapter 1: the shape -------------------------------------------------
   {
-    title: 'Welcome to the Tesseract',
-    text: 'This is a <b>4D Rubik\'s cube</b>. Instead of 6 flat faces it has <b>8 cubic cells</b>: the big cube in the middle, the outer frame, and the six "tunnels" between them. <b>Goal:</b> make every cell a single colour. Let\'s learn the controls — each step waits for you to try it.',
+    ch: 'Chapter 1 · The shape',
+    title: 'Welcome to the 4th dimension',
+    text: 'This course teaches you how the 4D cube works and a complete method to solve it. A 3D Rubik\'s cube has 6 flat faces; its 4D big brother has <b>8 cube-shaped cells</b>. What you see is a <i>projection</i> — the same trick as drawing a 3D cube on flat paper, one dimension up. <b>Goal:</b> make every cell a single colour.',
   },
   {
+    ch: 'Chapter 1 · The shape',
+    title: 'Reading the projection',
+    text: 'The <b>small cube in the middle</b> is one cell (the one furthest away in 4D). The six <b>tapering tunnels</b> around it are six more. The <b>outer frame</b> they all connect to is the 8th cell — and the cell nearest to you is <b>hidden</b>, exactly like the back face of a drawn 3D cube. All 8 cells are identical cubes; only the projection makes them look different.',
+  },
+  {
+    ch: 'Chapter 1 · The shape',
     title: 'Look around (3D)',
     detect: 'orbit',
-    text: '<b>Drag</b> anywhere to orbit the cube in 3D. <b>Scroll</b> or <b>pinch</b> to zoom. Try dragging now!',
+    text: '<b>Drag</b> anywhere to orbit the whole projection in 3D. <b>Scroll</b> or <b>pinch</b> to zoom. This never changes the puzzle. Try dragging now!',
   },
   {
+    ch: 'Chapter 1 · The shape',
     title: 'Rotate through the 4th dimension',
     detect: 'rot4d',
-    text: 'Press any <b>XW / YW / ZW</b> button (top right) — or <b>Shift+drag</b> — and watch the middle cube trade places with another cell. This only changes your viewpoint, never the puzzle. Try it!',
+    text: 'Press any <b>XW / YW / ZW</b> button (top right) — or <b>Shift+drag</b> — and watch the cells trade places: the centre cube flies out into a tunnel and another cell takes its spot. Still just your viewpoint. This is how you find the hidden cell. Try it!',
   },
   {
-    title: 'Bring a cell to the centre',
+    ch: 'Chapter 1 · The shape',
+    title: 'Bring any cell to the centre',
     detect: 'center',
-    text: '<b>Ctrl+click</b> a cell — or <b>press and hold</b> it — and it spins into the middle. Use this to inspect any colour up close. Also just a view change. Try it on any cell!',
+    text: '<b>Ctrl+click</b> a cell — or <b>press and hold</b> it — and it spins straight into the middle. While solving you\'ll do this constantly: centre the cell you\'re working on. Try it on any cell!',
+  },
+  // ---- chapter 2: the pieces ------------------------------------------------
+  {
+    ch: 'Chapter 2 · The pieces',
+    title: 'Four kinds of pieces',
+    text: 'Each cell is a 3×3×3 of blocks, and every block is a piece shared between cells:<br>· <b>8 centre pieces</b> (1 colour) — one per cell, they <i>never move</i> and define each cell\'s colour;<br>· <b>24 face pieces</b> (2 colours);<br>· <b>32 edge pieces</b> (3 colours);<br>· <b>16 corner pieces</b> (4 colours).<br>That\'s 80 moving pieces and about <b>1.8&times;10<sup>120</sup></b> positions — the 3D cube\'s 4.3&times;10<sup>19</sup> is a rounding error next to it.',
   },
   {
-    title: 'Make a twist',
+    ch: 'Chapter 2 · The pieces',
+    title: 'What a twist really does',
     detect: 'twist',
-    text: '<b>Click any sticker</b> to twist its cell. Where you hit it — a face, edge or corner block — decides how it turns. <b>Right-click</b> or <b>Shift+click</b> turns the other way. Make a twist now!',
+    text: 'A twist grabs <b>one whole cell — all 27 blocks</b> — and rotates it, the 4D version of turning a face. <b>Click any sticker</b> and watch closely: the cell\'s own stickers swirl among themselves, while the pieces it shares with its six neighbour cells <b>hop from one neighbour to another</b>. That hop is how pieces travel around the puzzle. Twist now!',
   },
   {
+    ch: 'Chapter 2 · The pieces',
+    title: 'The three grips',
+    detect: 'twistAxis',
+    text: '<b>Where</b> you click a cell decides the turn:<br>· a <b>face block</b> → 90° turn;<br>· an <b>edge block</b> → 180° flip about that edge\'s diagonal;<br>· a <b>corner block</b> → 120° spin about that corner\'s diagonal.<br><b>Right-click</b>/<b>Shift</b> reverses. Try an <b>edge or corner block</b> now (any block that isn\'t a face centre).',
+  },
+  {
+    ch: 'Chapter 2 · The pieces',
     title: 'Undo',
     detect: 'undo',
-    text: 'Your twist scrambled things a little. Press <b>Undo</b> (or <b>U</b>) to take it back — undo is your best friend while learning. Try it!',
+    text: 'Press <b>Undo</b> (or <b>U</b>) to take your twist back — it remembers grips too. While learning, undo freely: exploring and rewinding is exactly how you build intuition. Try it!',
+  },
+  // ---- chapter 3: the core skill --------------------------------------------
+  {
+    ch: 'Chapter 3 · The core skill',
+    title: 'The commutator',
+    text: 'Nearly every solving sequence on any twisty puzzle is a <b>commutator</b>: do <b>A</b>, do <b>B</b>, <b>undo A</b>, <b>undo B</b>. If A and B barely overlap, almost everything comes back — the net effect touches <i>just a few pieces</i>. That\'s how you move one piece <b>without wrecking what you\'ve already solved</b>.',
   },
   {
-    title: 'Practice: solve 1 move',
+    ch: 'Chapter 3 · The core skill',
+    title: 'Try a commutator',
+    detect: 'twist',
+    count: 4,
+    text: 'Do it for real: <b>twist one cell</b> (A), <b>twist a different cell</b> (B), then <b>reverse A</b> (right-click the same block you clicked first), then <b>reverse B</b>. Four twists — then study how few stickers actually changed. This pattern, plus patience, solves the whole puzzle.',
+  },
+  // ---- chapter 4: the method ------------------------------------------------
+  {
+    ch: 'Chapter 4 · The method',
+    title: 'The plan: three waves',
+    text: 'The proven route (Roice Nelson\'s <i>Ultimate Solution to a 3&times;3&times;3&times;3</i>, and the modern methods at hypercubing.xyz) solves the piece types in waves, easiest to hardest:<br><b>Wave 1</b> — all 24 two-colour pieces;<br><b>Wave 2</b> — all 32 three-colour pieces;<br><b>Wave 3</b> — all 16 four-colour pieces.<br>Each wave reuses a skill from the 3D cube, one dimension up.',
+  },
+  {
+    ch: 'Chapter 4 · The method',
+    title: 'Wave 1 — two-colour pieces',
+    text: '2-colour pieces behave like the <b>edges of a 3D cube</b>. Each cell owns six of them (its face blocks). Pick a colour, <b>centre that cell</b>, and ferry its six pieces home with short twist sequences — like building the cross on a 3D cube, six times… for eight cells. It\'s long, not hard: at this stage you can still twist fairly freely, so this wave teaches you to <i>see</i> in 4D.',
+  },
+  {
+    ch: 'Chapter 4 · The method',
+    title: 'Wave 2 — three-colour pieces',
+    text: '3-colour pieces play the role of <b>3D-cube corners</b>. Place them with <b>three-cycles</b>: commutator-built series that swap exactly three pieces and leave <i>everything</i> else untouched. Work cell by cell, and always twist so that solved regions return home by the end of each series. When a sequence goes wrong: <b>Undo</b> back and re-think — never push on blindly.',
+  },
+  {
+    ch: 'Chapter 4 · The method',
+    title: 'Wave 3 — the RKT trick',
+    text: 'The famous finish for the last 16 corner pieces: <b>centre the last unsolved cell</b> and treat that centre cube as an <b>ordinary 3D Rubik\'s cube</b>. Twisting the cells <i>around</i> it acts exactly like face turns on it — so every 3D algorithm you know can be executed on the 4D cube. This technique is called <b>RKT</b>, and it turns the scariest phase into familiar territory.',
+  },
+  {
+    ch: 'Chapter 4 · The method',
+    title: 'Field notes',
+    text: 'Honest expectations: a first full solve usually takes <b>several hundred twists</b> over multiple sittings — and completing one at all is a genuine badge of honour (MagicCube4D keeps a Hall of Fame for it). Three rules of thumb:<br>· finish each wave <i>completely</i> before the next;<br>· rotate the <b>view</b>, never destroy solved work to "see better";<br>· the move counter doesn\'t judge — <b>Undo</b> is free.',
+  },
+  // ---- chapter 5: practice ---------------------------------------------------
+  {
+    ch: 'Chapter 5 · Practice',
+    title: 'Solve: one twist',
     detect: 'solved',
     onEnter: () => doScramble(1),
-    text: 'We scrambled the cube with <b>one twist</b>. Find the cell with off-colour stickers (rotate in 4D if you need to) and click a moved block to twist it back. Wrong direction? <b>Undo</b> and try the reverse (right-click).',
+    text: 'We scrambled the cube with <b>one twist</b>. Hunt down the disturbed cells (4D-rotate or ctrl-click to inspect!), then click the moved block to turn it back. Wrong guess? <b>Undo</b> and try the reverse or a different grip.',
   },
   {
-    title: 'Practice: solve 2 moves',
+    ch: 'Chapter 5 · Practice',
+    title: 'Solve: two twists',
     detect: 'solved',
     onEnter: () => doScramble(2),
-    text: 'Now <b>two twists</b>. Solve them in reverse order: turn back the <i>last</i> scramble move first, then the first one. Take your time — <b>Undo</b> works on your own attempts.',
+    text: 'Now <b>two twists</b>. Reverse them in opposite order: fix the <i>most recent</i> damage first, then the older one. If the picture confuses you, centre a damaged cell and study which stickers are strangers.',
   },
   {
-    title: 'You\'re ready',
-    text: 'A real solve goes <b>cell by cell</b>: pick a colour, bring that cell to the centre, gather its pieces, then move on — like solving a 3D cube layer by layer, one dimension up. Press <b>Scramble</b> when you\'re ready. Good luck!',
+    ch: 'Chapter 5 · Practice',
+    title: 'Solve: three twists',
+    detect: 'solved',
+    onEnter: () => doScramble(3),
+    text: 'Final exam: <b>three twists</b> — a real micro-solve. Use everything: orbit, 4D rotation, centring, all three grips, and Undo. There\'s no rush; careful beats fast.',
+  },
+  {
+    ch: 'Chapter 5 · Practice',
+    title: 'You\'re a hypercubist now',
+    text: 'You know the shape, the pieces, the commutator and the three-wave method. Press <b>Scramble</b> (S) and begin Wave 1. For deeper study: <i>superliminal.com/cube</i> (the Ultimate Solution, sequence by sequence) and <i>hypercubing.xyz</i> (modern methods, RKT, community). Good luck!',
   },
 ];
-const tutorial = { active: false, step: 0, done: false, advT: null };
+const tutorial = { active: false, step: 0, done: false, advT: null, hits: 0 };
 
 function startTutorial() {
   hide(el.help); hide(el.win);
@@ -710,10 +791,13 @@ function tutorialGoto(n) {
   clearTimeout(tutorial.advT);
   tutorial.step = n;
   tutorial.done = false;
+  tutorial.hits = 0;
   const st = TUT_STEPS[n];
+  el.tutChapter.textContent = st.ch;
   el.tutTitle.textContent = st.title;
   el.tutText.innerHTML = st.text;
   el.tutCheck.hidden = true;
+  el.tutCheck.textContent = '✓ Nice!';
   el.tutPrev.disabled = n === 0;
   // steps that wait for an action label the forward button "Skip" until done
   el.tutNext.textContent = n === TUT_STEPS.length - 1 ? 'Finish' : (st.detect ? 'Skip' : 'Next');
@@ -729,11 +813,18 @@ function tutorialNext() {
 }
 function tutorialEvent(type) {
   if (!tutorial.active || tutorial.done) return;
-  if (TUT_STEPS[tutorial.step].detect !== type) return;
+  const st = TUT_STEPS[tutorial.step];
+  if (st.detect !== type) return;
+  if (st.count && ++tutorial.hits < st.count) {   // multi-action step: show progress
+    el.tutCheck.textContent = `${tutorial.hits} / ${st.count}`;
+    el.tutCheck.hidden = false;
+    return;
+  }
   tutorial.done = true;
+  el.tutCheck.textContent = '✓ Nice!';
   el.tutCheck.hidden = false;
   el.tutNext.textContent = tutorial.step === TUT_STEPS.length - 1 ? 'Finish' : 'Next';
-  tutorial.advT = setTimeout(tutorialNext, 1200);
+  tutorial.advT = setTimeout(tutorialNext, 1400);
 }
 
 // ----------------------------------------------------------------- selection
@@ -986,6 +1077,7 @@ const el = {
   winAgain: document.getElementById('win-again'),
   toast: document.getElementById('toast'),
   tutorial: document.getElementById('tutorial'),
+  tutChapter: document.getElementById('tut-chapter'),
   tutTitle: document.getElementById('tut-title'),
   tutText: document.getElementById('tut-text'),
   tutCheck: document.getElementById('tut-check'),
@@ -1053,6 +1145,15 @@ function toast(msg) {
   clearTimeout(toastT);
   toastT = setTimeout(() => { el.toast.hidden = true; }, 1700);
 }
+
+// ----------------------------------------------------------------- test hook
+// Minimal read/apply access to the puzzle engine for the automated math
+// verification in test/math.test.js. Not used by the game itself.
+window.__tess = {
+  pieces, commitTwist, commitTwistAxis, planesFor, isSolved, facingOf,
+  rotInt, rotAxisInt, matMul4, matVec4i, I4, AXN,
+  reset: () => { for (const p of pieces) { p.cur = p.solved.slice(); p.rot = I4(); } },
+};
 
 // ----------------------------------------------------------------- boot
 buildPieces();
