@@ -234,8 +234,6 @@ body {
 }
 .help-top:hover { color: var(--ink); transform: translateY(-1px); }
 
-/* floating "reset view" control (top right, under the stats) */
-#btn-view-reset { top: 96px; right: 22px; }
 
 /* ----------------------------------------------------------- legend */
 .hud-legend {
@@ -276,17 +274,6 @@ body {
 .dock-empty p { font-size: 12px; line-height: 1.5; color: var(--ink-dim); }
 .dock-empty b { color: var(--ink); }
 
-.dock-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.cell-chip {
-  display: inline-flex; align-items: center; gap: 9px;
-  font-size: 13px; font-weight: 600; color: var(--ink);
-  padding: 6px 12px 6px 8px; border-radius: 10px;
-  background: var(--glass-2); border: 1px solid var(--line);
-}
-.cell-chip i {
-  width: 16px; height: 16px; border-radius: 5px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22), 0 0 12px -2px currentColor;
-}
 .dock-close {
   width: 26px; height: 26px; border-radius: 8px;
   display: grid; place-items: center; font-size: 13px;
@@ -447,7 +434,6 @@ body {
 
 /* tablets / small landscape: keep the side panels, just tighten them */
 @media (max-width: 880px) and (min-width: 761px) {
-  #btn-view-reset { top: 88px; right: 14px; }
   .hud-legend { width: 156px; }
   .hud-dock { top: 88px; left: 14px; width: 190px; padding: 13px; }
   .stats { padding: 8px 12px; gap: 12px; }
@@ -477,26 +463,20 @@ body {
   /* the quick-scramble group doesn't fit next to five buttons on a phone;
      the tutorial's practice steps cover the same need */
   .scramble-mini { display: none; }
-  /* icon-only secondary buttons so everything stays inside the frame */
-  #btn-undo span, #btn-reset span, #btn-tutorial span { display: none; }
-  #btn-undo, #btn-reset, #btn-tutorial { flex: 0 0 52px; }
-
-  /* reset-view -> compact icon button just above the action bar, right side */
-  #btn-view-reset {
-    top: auto; right: 12px;
-    bottom: calc(env(safe-area-inset-bottom) + 72px);
-    flex: none; width: 48px; height: 44px; justify-content: center; padding: 0;
-  }
-  #btn-view-reset span { display: none; }
+  /* icon-only secondary buttons so everything stays inside the frame; the
+     scramble button shrinks to whatever is left */
+  #btn-undo span, #btn-reset span, #btn-view-reset span, #btn-tutorial span { display: none; }
+  #btn-undo, #btn-reset, #btn-view-reset, #btn-tutorial { flex: 0 0 48px; }
+  #btn-scramble { padding: 0 6px; }
+  #btn-scramble svg { display: none; }
 
   /* twist dock -> bottom sheet, shown only when a cell is selected */
   .hud-dock {
     top: auto; left: 12px; right: 12px; width: auto;
-    bottom: calc(env(safe-area-inset-bottom) + 124px);
+    bottom: calc(env(safe-area-inset-bottom) + 72px);
     padding: 12px 13px;
   }
   .hud-dock[data-empty="true"] { display: none; }
-  .dock-head { margin-bottom: 11px; }
   .twist-rows { flex-direction: row; gap: 8px; }
   .twist-row {
     flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;

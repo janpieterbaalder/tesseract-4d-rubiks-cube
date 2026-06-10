@@ -1027,9 +1027,6 @@ function selectCell(d, sd, hit) {
   }
   selected = { d, sd, key, grip, piece };
   buildTwistRows();
-  el.cellSwatch.style.background = COLORS[key];
-  el.cellSwatch.style.color = COLORS[key];
-  el.cellName.textContent = `${CELL_LABEL[key]} cell · ${key}`;
   el.dock.dataset.empty = 'false';
 }
 function deselect() {
@@ -1284,10 +1281,7 @@ const el = {
   help: document.getElementById('help'),
   win: document.getElementById('win'),
   dock: document.getElementById('dock'),
-  dockClose: document.getElementById('dock-close'),
   twistRows: document.getElementById('twist-rows'),
-  cellSwatch: document.getElementById('cell-swatch'),
-  cellName: document.getElementById('cell-name'),
   legendGrid: document.getElementById('legend-grid'),
   legendToggle: document.getElementById('legend-toggle'),
   winTime: document.getElementById('win-time'),
@@ -1312,7 +1306,6 @@ document.querySelectorAll('.btn-mini').forEach(b => {
 });
 el.undo.addEventListener('click', doUndo);
 el.reset.addEventListener('click', doReset);
-el.dockClose.addEventListener('click', deselect);
 function resetView() {
   if (anim) return;
   yaw = -0.785; pitch = 0.615; zoom = 1.0; panX = 0; panY = 0;
