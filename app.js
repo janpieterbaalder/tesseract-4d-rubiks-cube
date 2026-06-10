@@ -292,6 +292,7 @@ let view4 = I4();             // identity: the +W cell faces the 4D camera and i
 let yaw = -0.785, pitch = 0.615;                                 // 3D orbit — looks down the body diagonal (symmetric 6-arm pinwheel)
 let view3 = mat3FromYawPitch(yaw, pitch);
 let zoom = 1.0;
+let panX = 0, panY = 0;       // free 2D pan of the projection (right-drag / two-finger drag)
 
 let selected = null;        // { d, sd, key }
 let anim = null;            // active animation
@@ -338,8 +339,8 @@ function project(c4, animMat) {
   const cam = matVec3(view3, p);
   const s3 = V3D / (V3D - cam[2]);
   return {
-    x: cx + cam[0] * s3 * scale * zoom,
-    y: cy - cam[1] * s3 * scale * zoom,
+    x: cx + panX + cam[0] * s3 * scale * zoom,
+    y: cy + panY - cam[1] * s3 * scale * zoom,
     cz: cam[2],
     cam,
   };
@@ -355,7 +356,7 @@ function render() {
   ctx.clearRect(0, 0, cssW, cssH);
 
   // soft central halo for depth — a quiet pastel lilac/blue blend
-  const halo = ctx.createRadialGradient(cx, cy - 10, 30, cx, cy - 10, Math.min(cssW, cssH) * 0.62);
+  const halo = ctx.createRadialGradient(cx + panX, cy + panY - 10, 30, cx + panX, cy + panY - 10, Math.min(cssW, cssH) * 0.62);
   halo.addColorStop(0, 'rgba(150, 140, 205, 0.15)');
   halo.addColorStop(0.5, 'rgba(105, 110, 175, 0.05)');
   halo.addColorStop(1, 'rgba(0,0,0,0)');
@@ -479,7 +480,6 @@ function ease(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
 const DUR_TWIST = 520;      // 90-degree plane twist
 const DUR_GRIP = 620;       // 120-degree corner grip
 const DUR_GRIP_180 = 720;   // 180-degree edge grip
-const DUR_VIEW = 700;       // stepped 4D view rotation
 const DUR_CENTER = 820;     // rotate-cell-to-centre view move
 
 // 90-degree plane twist (dock / keyboard / scramble-undo)
@@ -509,12 +509,6 @@ function startTwistAxis(d, sd, inAx, u3, theta, opts = {}) {
   return true;
 }
 
-function startViewRot(i, j, dir) {
-  if (anim) return false;
-  anim = { type: 'view', mode: 'plane', i, j, dir, t: 0, dur: DUR_VIEW, base: view4 };
-  tutorialEvent('rot4d');
-  return true;
-}
 // Reorient the 4D view so the clicked cell rotates to the centre (the small nested
 // cube = the -W axis, "really the one furthest from the 4D viewer") — exactly like
 // MagicCube4D's ctrl-click. reverse=true sends the central cell out to the clicked
@@ -559,8 +553,7 @@ function tick(now) {
         if (done) done();
       }
     } else if (anim.type === 'view') {
-      if (anim.mode === 'geo') view4 = matMul4(rotBetween(anim.from, anim.to, e), anim.base);
-      else view4 = matMul4(rotFloat(anim.i, anim.j, e * anim.dir * Math.PI/2), anim.base);
+      view4 = matMul4(rotBetween(anim.from, anim.to, e), anim.base);
       if (k >= 1) { anim = null; }
     }
   }
@@ -662,117 +655,151 @@ function win() {
 // 3^4: Roice Nelson's "Ultimate Solution to a 3x3x3x3" (superliminal.com) and
 // the modern methods documented on hypercubing.xyz — two-colour pieces first,
 // then three-colour, then four-colour, finishing with the RKT technique.
-// Inline SVG illustrations for the tutorial card. Lightly animated via the
-// ta-* CSS classes in styles.css (spin / dash-flow / pulse / slide).
-function taCellGrid(x0, y0, s, hotR, hotC) {
+// Inline SVG illustrations for the tutorial card, drawn in the same isometric
+// 3D style as the puzzle itself. Lightly animated via the ta-* CSS classes in
+// styles.css (spin / dash-flow / pulse / slide).
+function taShade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+  return `rgb(${ch((n >> 16) & 255)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
+}
+// solid isometric cube; (x, y) = apex (back corner) of the top face,
+// w = half-width of the top diamond, o.d = side depth (defaults to w)
+function taCube(x, y, w, hex, o = {}) {
+  const h = w * 0.5, d = o.d == null ? w : o.d;
+  const top = o.top || taShade(hex, 1.0);
+  const left = o.left || taShade(hex, 0.7);
+  const right = o.right || taShade(hex, 0.88);
+  return `<g${o.cls ? ` class="${o.cls}"` : ''}>` +
+    `<path d="M${x} ${y}l${w} ${h}l-${w} ${h}l-${w} -${h}z" fill="${top}"/>` +
+    `<path d="M${x - w} ${y + h}l${w} ${h}v${d}l-${w} -${h}z" fill="${left}"/>` +
+    `<path d="M${x + w} ${y + h}l-${w} ${h}v${d}l${w} -${h}z" fill="${right}"/></g>`;
+}
+// isometric wireframe cube (the cell "frame"): silhouette hexagon + the three
+// visible inner edges. Optional dash for "hidden" cells.
+function taFrame(x, y, w, d, stroke, dash) {
+  const h = w * 0.5;
+  return `<g fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}>` +
+    `<path d="M${x} ${y}l${w} ${h}v${d}l-${w} ${h}l-${w} -${h}v-${d}z"/>` +
+    `<path d="M${x - w} ${y + h}L${x} ${y + 2 * h}L${x + w} ${y + h}M${x} ${y + 2 * h}v${d}"/></g>`;
+}
+// one diamond tile on an isometric top face
+function taTile(x, y, cw, attrs) {
+  const g = cw - 1.1, h = g * 0.5;
+  return `<path d="M${x} ${y}l${g} ${h}l-${g} ${h}l-${g} -${h}z" ${attrs}/>`;
+}
+// 3x3 grid of tiles on a cube's top face, apex at (x, y), cell half-width cw.
+// fills: a single colour or an array of 9; hot cells pulse pink.
+function taIsoTop(x, y, cw, fills, hot = []) {
   let out = '';
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
-    const hot = r === hotR && c === hotC;
-    out += `<rect x="${x0 + c * s}" y="${y0 + r * s}" width="${s - 3}" height="${s - 3}" rx="2.5" fill="${hot ? '#f5b3c8' : '#2a3550'}"${hot ? ' class="ta-pulse"' : ''}/>`;
+    const tx = x + (c - r) * cw, ty = y + (c + r) * cw * 0.5;
+    const isHot = hot.some(([hr, hc]) => hr === r && hc === c);
+    const fill = isHot ? '#f5b3c8' : (Array.isArray(fills) ? fills[r * 3 + c] : fills);
+    out += taTile(tx, ty, cw, `fill="${fill}"${isHot ? ' class="ta-pulse"' : ''}`);
   }
   return out;
 }
+// isometric die: lemon cube with n pips on the top face
 function taDice(n) {
-  const pips = { 1: [[0,0]], 2: [[-1,-1],[1,1]], 3: [[-1,-1],[0,0],[1,1]] }[n]
-    .map(([dx,dy]) => `<circle cx="${140 + dx * 13}" cy="${48 + dy * 13}" r="5.5" fill="#0b1020"/>`).join('');
-  return `<svg viewBox="0 0 280 96" fill="none"><rect x="112" y="20" width="56" height="56" rx="12" fill="#f3e69a" class="ta-pulse"/>${pips}</svg>`;
+  const pips = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]] }[n]
+    .map(([a, b]) => `<ellipse cx="${140 + a * 10}" cy="${28 + b * 5}" rx="4.5" ry="2.6" fill="#3a3208"/>`).join('');
+  return `<svg viewBox="0 0 280 96">${taCube(140, 16, 24, '#f3e69a', { d: 20, cls: 'ta-pulse' })}${pips}</svg>`;
 }
 const TUT_ART = {
   tesseract: `<svg viewBox="0 0 280 96">
-    <rect x="102" y="8" width="76" height="80" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
-    <rect x="124" y="31" width="32" height="34" rx="4" fill="none" stroke="#f5b3c8" stroke-width="2" class="ta-pulse"/>
-    <path d="M102 8L124 31M178 8L156 31M102 88L124 65M178 88L156 65" fill="none" stroke="#65728c" stroke-width="1.4"/>
+    ${taFrame(140, 8, 38, 32, '#b3b9f2')}
+    ${taCube(140, 33, 13, '#f5b3c8', { d: 11, cls: 'ta-pulse' })}
+    <path d="M140 8v25M178 27l-25 12.5M102 27l25 12.5M140 78V57" fill="none" stroke="#65728c" stroke-width="1.2"/>
   </svg>`,
   cells: `<svg viewBox="0 0 280 96">
-    <rect x="102" y="8" width="76" height="80" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
-    <path d="M102 8h76l-22 23h-32z" fill="#b7e6a8" opacity=".4"/>
-    <path d="M102 88h76l-22-23h-32z" fill="#dcb4ee" opacity=".4"/>
-    <path d="M102 8v80l22-23V31z" fill="#f3e69a" opacity=".35"/>
-    <path d="M178 8v80l-22-23V31z" fill="#f8c89a" opacity=".4"/>
-    <rect x="124" y="31" width="32" height="34" rx="4" fill="#f5b3c8" opacity=".55" stroke="#f5b3c8"/>
-    <text x="14" y="28" fill="#9fb0cc" font-size="10">frame = a cell</text>
-    <path d="M74 32l27-10" fill="none" stroke="#65728c" stroke-width="1"/>
-    <text x="198" y="56" fill="#9fb0cc" font-size="10">centre = a cell</text>
-    <path d="M196 52l-38-2" fill="none" stroke="#65728c" stroke-width="1"/>
+    <path d="M140 8l38 19-38 19-38-19z" fill="#b7e6a8" opacity=".25"/>
+    <path d="M102 27l38 19v32l-38-19z" fill="#f3e69a" opacity=".2"/>
+    <path d="M178 27l-38 19v32l38-19z" fill="#f8c89a" opacity=".22"/>
+    ${taFrame(140, 8, 38, 32, '#b3b9f2', '5 5')}
+    ${taCube(140, 33, 13, '#f5b3c8', { d: 11 })}
+    <text x="10" y="22" fill="#9fb0cc" font-size="10">hidden 8th cell</text>
+    <path d="M76 25l25 4" fill="none" stroke="#65728c" stroke-width="1"/>
+    <text x="206" y="62" fill="#9fb0cc" font-size="10">centre cell</text>
+    <path d="M203 58l-49-12" fill="none" stroke="#65728c" stroke-width="1"/>
+    <text x="206" y="18" fill="#9fb0cc" font-size="10">tunnel cells</text>
+    <path d="M203 16l-40 8" fill="none" stroke="#65728c" stroke-width="1"/>
   </svg>`,
   orbit: `<svg viewBox="0 0 280 96">
-    <path d="M118 35l22-9 22 9-22 9z" fill="#c4e4f5"/>
-    <path d="M118 35v22l22 9V44z" fill="#7fb6d9"/>
-    <path d="M162 35v22l-22 9V44z" fill="#a4d8f0"/>
-    <ellipse cx="140" cy="50" rx="58" ry="24" fill="none" stroke="#9fb0cc" stroke-width="1.6" class="ta-dash"/>
+    ${taCube(140, 24, 20, '#a4d8f0')}
+    <ellipse cx="140" cy="50" rx="58" ry="22" fill="none" stroke="#9fb0cc" stroke-width="1.6" class="ta-dash"/>
     <path d="M196 60l9-2-5 8z" fill="#9fb0cc"/>
   </svg>`,
   rot4d: `<svg viewBox="0 0 280 96">
-    <rect x="104" y="10" width="72" height="76" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
-    <rect x="126" y="32" width="28" height="32" rx="4" fill="none" stroke="#f5b3c8" stroke-width="2"/>
-    <path d="M88 48c-18-26 18-44 52-34" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
-    <path d="M136 9l9 2-6 7z" fill="#a3e8cf"/>
-    <path d="M192 48c18 26-18 44-52 34" fill="none" stroke="#f3e69a" stroke-width="2" class="ta-dash"/>
-    <path d="M144 87l-9-2 6-7z" fill="#f3e69a"/>
+    ${taFrame(140, 10, 34, 28, '#b3b9f2')}
+    ${taCube(140, 32, 12, '#f5b3c8', { d: 10 })}
+    <path d="M90 44c-16-26 18-42 50-33" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
+    <path d="M136 6l9 2-6 7z" fill="#a3e8cf"/>
+    <path d="M190 44c16 26-18 42-50 33" fill="none" stroke="#f3e69a" stroke-width="2" class="ta-dash"/>
+    <path d="M144 82l-9-2 6-7z" fill="#f3e69a"/>
   </svg>`,
   center: `<svg viewBox="0 0 280 96">
-    <circle cx="118" cy="48" r="17" fill="none" stroke="#65728c" stroke-width="1.4" stroke-dasharray="4 5"/>
-    <path d="M118 26v-8M118 70v8M96 48h-8M140 48h8" fill="none" stroke="#65728c" stroke-width="1.4"/>
-    <rect x="172" y="36" width="24" height="24" rx="5" fill="#b7e6a8" class="ta-slide"/>
+    <circle cx="106" cy="51" r="18" fill="none" stroke="#65728c" stroke-width="1.4" stroke-dasharray="4 5"/>
+    <path d="M106 27v-8M106 75v8M82 51h-8M130 51h8" fill="none" stroke="#65728c" stroke-width="1.4"/>
+    ${taCube(172, 36, 15, '#b7e6a8', { d: 13, cls: 'ta-slide' })}
   </svg>`,
   pieces: `<svg viewBox="0 0 280 96">
-    <rect x="22" y="22" width="36" height="36" rx="6" fill="#f5b3c8"/><text x="40" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">1c ×8</text>
-    <path d="M88 22h36v36z" fill="#b7e6a8"/><path d="M88 22v36h36z" fill="#a4d8f0"/><rect x="88" y="22" width="36" height="36" rx="6" fill="none" stroke="#0b1020"/><text x="106" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">2c ×24</text>
-    <rect x="154" y="22" width="12" height="36" fill="#f3e69a"/><rect x="166" y="22" width="12" height="36" fill="#dcb4ee"/><rect x="178" y="22" width="12" height="36" fill="#a3e8cf"/><rect x="154" y="22" width="36" height="36" rx="6" fill="none" stroke="#0b1020"/><text x="172" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">3c ×32</text>
-    <rect x="220" y="22" width="18" height="18" fill="#f8c89a"/><rect x="238" y="22" width="18" height="18" fill="#b3b9f2"/><rect x="220" y="40" width="18" height="18" fill="#b7e6a8"/><rect x="238" y="40" width="18" height="18" fill="#f5b3c8"/><rect x="220" y="22" width="36" height="36" rx="6" fill="none" stroke="#0b1020"/><text x="238" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">4c ×16</text>
+    ${taCube(40, 22, 15, '#f5b3c8', { d: 13 })}<text x="40" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">1c ×8</text>
+    ${taCube(106, 22, 15, '#b7e6a8', { d: 13, left: taShade('#a4d8f0', 0.7), right: taShade('#a4d8f0', 0.88) })}<text x="106" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">2c ×24</text>
+    ${taCube(172, 22, 15, '#f3e69a', { d: 13, left: taShade('#dcb4ee', 0.7), right: taShade('#a3e8cf', 0.88) })}<text x="172" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">3c ×32</text>
+    ${taCube(238, 22, 15, '#f8c89a', { d: 13, left: taShade('#b7e6a8', 0.7), right: taShade('#f5b3c8', 0.88) })}<path d="M238 22l15 7.5-15 7.5z" fill="#b3b9f2"/><text x="238" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">4c ×16</text>
   </svg>`,
   twist: `<svg viewBox="0 0 280 96">
-    <g class="ta-spin">
-      <rect x="112" y="20" width="17" height="17" rx="3" fill="#a4d8f0"/><rect x="132" y="20" width="17" height="17" rx="3" fill="#f3e69a"/><rect x="152" y="20" width="17" height="17" rx="3" fill="#b7e6a8"/>
-      <rect x="112" y="40" width="17" height="17" rx="3" fill="#f5b3c8"/><rect x="132" y="40" width="17" height="17" rx="3" fill="#dcb4ee"/><rect x="152" y="40" width="17" height="17" rx="3" fill="#f8c89a"/>
-      <rect x="112" y="60" width="17" height="17" rx="3" fill="#a3e8cf"/><rect x="132" y="60" width="17" height="17" rx="3" fill="#b3b9f2"/><rect x="152" y="60" width="17" height="17" rx="3" fill="#a4d8f0"/>
-    </g>
-    <path d="M208 56a68 40 0 0 0-26-36" fill="none" stroke="#9fb0cc" stroke-width="2" class="ta-dash"/>
-    <path d="M186 14l-9 1 5 8z" fill="#9fb0cc"/>
+    ${taCube(140, 14, 27, '#26314e', { d: 22 })}
+    ${taIsoTop(140, 14, 9, ['#a4d8f0', '#f3e69a', '#b7e6a8', '#f5b3c8', '#dcb4ee', '#f8c89a', '#a3e8cf', '#b3b9f2', '#a4d8f0'])}
+    <ellipse cx="140" cy="34" rx="62" ry="20" fill="none" stroke="#9fb0cc" stroke-width="1.8" class="ta-dash"/>
+    <path d="M200 44l9-3-5 8z" fill="#9fb0cc"/>
   </svg>`,
   grips: `<svg viewBox="0 0 280 96">
-    ${taCellGrid(34, 16, 15, 1, 1)}<text x="55" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">face 90°</text>
-    ${taCellGrid(118, 16, 15, 1, 0)}<text x="139" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">edge 180°</text>
-    ${taCellGrid(202, 16, 15, 0, 0)}<text x="223" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">corner 120°</text>
+    ${taCube(56, 14, 21, '#26314e', { d: 16 })}${taIsoTop(56, 14, 7, '#2f3a58', [[1, 1]])}<text x="56" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">face 90°</text>
+    ${taCube(140, 14, 21, '#26314e', { d: 16 })}${taIsoTop(140, 14, 7, '#2f3a58', [[0, 1]])}<text x="140" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">edge 180°</text>
+    ${taCube(224, 14, 21, '#26314e', { d: 16 })}${taIsoTop(224, 14, 7, '#2f3a58', [[2, 2]])}<text x="224" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">corner 120°</text>
   </svg>`,
   undo: `<svg viewBox="0 0 280 96">
     <path d="M180 70a36 36 0 1 0-70-10" fill="none" stroke="#a3e8cf" stroke-width="3" stroke-linecap="round" class="ta-dash"/>
     <path d="M101 50l9 17 13-13z" fill="#a3e8cf"/>
   </svg>`,
   comm: `<svg viewBox="0 0 280 96">
-    <g class="ta-pop1"><rect x="34" y="30" width="40" height="36" rx="9" fill="#f5b3c8"/><text x="54" y="53" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A</text></g>
-    <g class="ta-pop2"><rect x="94" y="30" width="40" height="36" rx="9" fill="#a4d8f0"/><text x="114" y="53" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B</text></g>
-    <g class="ta-pop3"><rect x="154" y="30" width="40" height="36" rx="9" fill="#f5b3c8"/><text x="174" y="53" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A′</text></g>
-    <g class="ta-pop4"><rect x="214" y="30" width="40" height="36" rx="9" fill="#a4d8f0"/><text x="234" y="53" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B′</text></g>
+    <g class="ta-pop1"><rect x="37" y="36" width="40" height="34" rx="9" fill="${taShade('#f5b3c8', 0.55)}"/><rect x="34" y="30" width="40" height="34" rx="9" fill="#f5b3c8"/><text x="54" y="52" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A</text></g>
+    <g class="ta-pop2"><rect x="97" y="36" width="40" height="34" rx="9" fill="${taShade('#a4d8f0', 0.55)}"/><rect x="94" y="30" width="40" height="34" rx="9" fill="#a4d8f0"/><text x="114" y="52" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B</text></g>
+    <g class="ta-pop3"><rect x="157" y="36" width="40" height="34" rx="9" fill="${taShade('#f5b3c8', 0.55)}"/><rect x="154" y="30" width="40" height="34" rx="9" fill="#f5b3c8"/><text x="174" y="52" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A′</text></g>
+    <g class="ta-pop4"><rect x="217" y="36" width="40" height="34" rx="9" fill="${taShade('#a4d8f0', 0.55)}"/><rect x="214" y="30" width="40" height="34" rx="9" fill="#a4d8f0"/><text x="234" y="52" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B′</text></g>
   </svg>`,
   waves: `<svg viewBox="0 0 280 96">
-    <g class="ta-pop1"><circle cx="60" cy="38" r="17" fill="#b7e6a8"/><text x="60" y="42" fill="#15301c" font-size="10" font-weight="700" text-anchor="middle">2c</text><text x="60" y="76" fill="#9fb0cc" font-size="10" text-anchor="middle">24 pieces</text></g>
-    <g class="ta-pop2"><circle cx="140" cy="38" r="17" fill="#f3e69a"/><text x="140" y="42" fill="#3a3208" font-size="10" font-weight="700" text-anchor="middle">3c</text><text x="140" y="76" fill="#9fb0cc" font-size="10" text-anchor="middle">32 pieces</text></g>
-    <g class="ta-pop3"><circle cx="220" cy="38" r="17" fill="#f5b3c8"/><text x="220" y="42" fill="#3a2030" font-size="10" font-weight="700" text-anchor="middle">4c</text><text x="220" y="76" fill="#9fb0cc" font-size="10" text-anchor="middle">16 pieces</text></g>
-    <path d="M82 38h32M162 38h32" fill="none" stroke="#9fb0cc" stroke-width="1.6"/>
-    <path d="M112 33l9 5-9 5zM192 33l9 5-9 5z" fill="#9fb0cc"/>
+    <g class="ta-pop1">${taCube(60, 20, 14, '#b7e6a8', { d: 12, left: taShade('#a4d8f0', 0.7), right: taShade('#a4d8f0', 0.88) })}<text x="60" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">2c · 24</text></g>
+    <g class="ta-pop2">${taCube(140, 20, 14, '#f3e69a', { d: 12, left: taShade('#dcb4ee', 0.7), right: taShade('#a3e8cf', 0.88) })}<text x="140" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">3c · 32</text></g>
+    <g class="ta-pop3">${taCube(220, 20, 14, '#f8c89a', { d: 12, left: taShade('#b7e6a8', 0.7), right: taShade('#f5b3c8', 0.88) })}<path d="M220 20l14 7-14 7z" fill="#b3b9f2"/><text x="220" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">4c · 16</text></g>
+    <path d="M82 40h32M164 40h32" fill="none" stroke="#9fb0cc" stroke-width="1.6"/>
+    <path d="M112 35l9 5-9 5zM194 35l9 5-9 5z" fill="#9fb0cc"/>
   </svg>`,
   wave1: `<svg viewBox="0 0 280 96">
-    <rect x="121" y="14" width="18" height="18" rx="3" fill="none" stroke="#65728c" stroke-dasharray="3 3"/>
-    <rect x="103" y="32" width="18" height="18" rx="3" fill="#b7e6a8"/>
-    <rect x="121" y="32" width="18" height="18" rx="3" fill="#b7e6a8"/>
-    <rect x="139" y="32" width="18" height="18" rx="3" fill="#b7e6a8"/>
-    <rect x="121" y="50" width="18" height="18" rx="3" fill="#b7e6a8"/>
-    <g class="ta-slide2"><rect x="210" y="14" width="18" height="18" rx="3" fill="#b7e6a8"/><path d="M210 14l9-8 9 8z" fill="#a4d8f0"/></g>
+    ${taTile(133, 30.5, 13, 'fill="none" stroke="#65728c" stroke-dasharray="3 3"')}
+    ${taTile(107, 30.5, 13, 'fill="#b7e6a8"')}
+    ${taTile(120, 37, 13, 'fill="#b7e6a8"')}
+    ${taTile(133, 43.5, 13, 'fill="#b7e6a8"')}
+    ${taTile(107, 43.5, 13, 'fill="#b7e6a8"')}
+    ${taCube(222, 25, 11, '#b7e6a8', { d: 9, left: taShade('#a4d8f0', 0.7), right: taShade('#a4d8f0', 0.88), cls: 'ta-slide2' })}
   </svg>`,
   wave2: `<svg viewBox="0 0 280 96">
-    <rect x="129" y="8" width="22" height="22" rx="4" fill="#f3e69a"/>
-    <rect x="92" y="60" width="22" height="22" rx="4" fill="#dcb4ee"/>
-    <rect x="166" y="60" width="22" height="22" rx="4" fill="#a3e8cf"/>
-    <path d="M122 58l13-24M160 34l13 24M160 74h-40" fill="none" stroke="#9fb0cc" stroke-width="1.8" class="ta-dash"/>
-    <path d="M133 28l4-8 4 8zM176 52l4 9-9-1zM124 69l-8 5 8 5z" fill="#9fb0cc"/>
+    ${taCube(140, 4, 13, '#f3e69a', { d: 11 })}
+    ${taCube(103, 50, 13, '#dcb4ee', { d: 11 })}
+    ${taCube(177, 50, 13, '#a3e8cf', { d: 11 })}
+    <path d="M118 56l14-24M162 32l13 24M164 78h-44" fill="none" stroke="#9fb0cc" stroke-width="1.8" class="ta-dash"/>
+    <path d="M130 26l4-8 4 8zM178 50l4 9-9-1zM126 73l-8 5 8 5z" fill="#9fb0cc"/>
   </svg>`,
   rkt: `<svg viewBox="0 0 280 96">
-    <rect x="103" y="9" width="74" height="78" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
-    ${taCellGrid(125, 33, 11, -1, -1).replace(/#2a3550/g, '#f5b3c8')}
-    <path d="M84 48h26M196 48h-26M140 92V72" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
-    <path d="M108 43l9 5-9 5zM172 43l-9 5 9 5zM135 76l5-9 5 9z" fill="#a3e8cf"/>
-    <text x="140" y="24" fill="#9fb0cc" font-size="10" text-anchor="middle">= a 3D cube!</text>
+    ${taFrame(140, 8, 38, 30, '#b3b9f2')}
+    ${taCube(140, 32, 14, '#f5b3c8', { d: 12, top: taShade('#f5b3c8', 0.68) })}
+    ${taIsoTop(140, 32, 4.7, '#f5b3c8')}
+    <path d="M82 46h24M198 46h-24M140 94V78" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
+    <path d="M104 41l9 5-9 5zM176 41l-9 5 9 5zM135 81l5-9 5 9z" fill="#a3e8cf"/>
+    <text x="196" y="20" fill="#9fb0cc" font-size="10">= a 3D cube!</text>
+    <path d="M194 18l-26 14" fill="none" stroke="#65728c" stroke-width="1"/>
   </svg>`,
   dice1: taDice(1), dice2: taDice(2), dice3: taDice(3),
   done: `<svg viewBox="0 0 280 96">
@@ -792,7 +819,7 @@ const TUT_STEPS = [
     ch: 'Chapter 1 · The shape',
     title: 'Reading the projection',
     art: TUT_ART.cells,
-    text: 'The <b>small cube in the middle</b> is one cell (the one furthest away in 4D). The six <b>tapering tunnels</b> around it are six more. The <b>outer frame</b> they all connect to is the 8th cell — and the cell nearest to you is <b>hidden</b>, exactly like the back face of a drawn 3D cube. All 8 cells are identical cubes; only the projection makes them look different.',
+    text: 'The <b>small cube in the middle</b> is one cell (the one furthest away in 4D). The six <b>tapering tunnels</b> around it are six more. The <b>8th cell</b> is the one nearest to you — it would wrap around the outside as a big frame, but it\'s <b>hidden</b> so you can see in, just like the back face of a drawn 3D cube. All 8 cells are identical cubes; only the projection makes them look different.',
   },
   {
     ch: 'Chapter 1 · The shape',
@@ -804,9 +831,9 @@ const TUT_STEPS = [
   {
     ch: 'Chapter 1 · The shape',
     title: 'Rotate through the 4th dimension',
-    detect: 'rot4d',
+    detect: ['rot4d', 'center'],
     art: TUT_ART.rot4d,
-    text: 'Press any <b>XW / YW / ZW</b> button (top right) — or <b>Shift+drag</b> — and watch the cells trade places: the centre cube flies out into a tunnel and another cell takes its spot. Still just your viewpoint. This is how you find the hidden cell. Try it!',
+    text: 'Hold <b>Shift and drag</b> — the whole structure rotates through the 4th dimension and the cells <b>trade places</b>: the centre cube flies out into a tunnel and another cell takes its spot. On touch, <b>press-and-hold</b> a cell instead (more in the next step). Still just your viewpoint — and it\'s how you find the hidden cell. Try it!',
   },
   {
     ch: 'Chapter 1 · The shape',
@@ -966,7 +993,8 @@ function tutorialNext() {
 function tutorialEvent(type) {
   if (!tutorial.active || tutorial.done) return;
   const st = TUT_STEPS[tutorial.step];
-  if (st.detect !== type) return;
+  const match = Array.isArray(st.detect) ? st.detect.includes(type) : st.detect === type;
+  if (!match) return;
   if (st.count && ++tutorial.hits < st.count) {   // multi-action step: show progress
     el.tutCheck.textContent = `${tutorial.hits} / ${st.count}`;
     el.tutCheck.hidden = false;
@@ -1083,6 +1111,15 @@ function twoPointerDist() {
   const p = [...pointers.values()];
   return Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
 }
+function twoPointerMid() {
+  const p = [...pointers.values()];
+  return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+}
+function clampPan() {
+  const mx = cssW * 0.75, my = cssH * 0.75;
+  panX = Math.max(-mx, Math.min(mx, panX));
+  panY = Math.max(-my, Math.min(my, panY));
+}
 
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
@@ -1092,19 +1129,25 @@ canvas.addEventListener('pointerdown', (e) => {
   if (pointers.size === 1) {
     drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY,
              yaw0: yaw, pitch0: pitch, base4: view4.map(r => r.slice()),
+             panX0: panX, panY0: panY,
+             pan: e.button === 2 || e.altKey,      // right-drag (or Alt+drag) pans the view
              shift: e.shiftKey, ctrl: e.ctrlKey, moved: false, consumed: false, button: e.button };
     pinch = null;
     // hold (long-press / mouse hold) on a cell -> rotate that cell to the centre:
-    // a touch-friendly equivalent of MagicCube4D's ctrl-click.
-    drag.lpTimer = setTimeout(() => {
-      if (!drag || drag.moved || drag.consumed || anim) return;
-      const hit = pickAt(drag.x0, drag.y0);
-      if (hit && startCenterCell(hit.d, hit.sd, false)) { drag.consumed = true; toast('Cell → centre'); }
-    }, LONG_PRESS_MS);
+    // a touch-friendly equivalent of MagicCube4D's ctrl-click. Primary button only,
+    // so a right-button pan never triggers it.
+    if (e.button === 0 && !e.altKey) {
+      drag.lpTimer = setTimeout(() => {
+        if (!drag || drag.moved || drag.consumed || anim) return;
+        const hit = pickAt(drag.x0, drag.y0);
+        if (hit && startCenterCell(hit.d, hit.sd, false)) { drag.consumed = true; toast('Cell → centre'); }
+      }, LONG_PRESS_MS);
+    }
   } else if (pointers.size === 2) {
     if (drag && drag.lpTimer) clearTimeout(drag.lpTimer);
-    drag = null;                                   // 2nd finger -> pinch, cancel tap/orbit
-    pinch = { d0: twoPointerDist(), zoom0: zoom };
+    drag = null;                                   // 2nd finger -> pinch/pan, cancel tap/orbit
+    const m = twoPointerMid();
+    pinch = { d0: twoPointerDist(), zoom0: zoom, mx0: m.x, my0: m.y, panX0: panX, panY0: panY };
   }
 });
 
@@ -1112,8 +1155,17 @@ canvas.addEventListener('pointermove', (e) => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   if (pinch && pointers.size >= 2) {
-    const d = twoPointerDist();
-    if (pinch.d0 > 0) zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pinch.zoom0 * d / pinch.d0));
+    // two-finger gesture: pinch zooms about the (initial) midpoint, and moving
+    // both fingers pans the view — so zooming never snaps back to the centre
+    const d = twoPointerDist(), m = twoPointerMid();
+    if (pinch.d0 > 0) {
+      const z2 = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pinch.zoom0 * d / pinch.d0));
+      const f = z2 / pinch.zoom0;
+      panX = pinch.mx0 - cx - (pinch.mx0 - cx - pinch.panX0) * f + (m.x - pinch.mx0);
+      panY = pinch.my0 - cy - (pinch.my0 - cy - pinch.panY0) * f + (m.y - pinch.my0);
+      zoom = z2;
+      clampPan();
+    }
     return;
   }
 
@@ -1124,7 +1176,11 @@ canvas.addEventListener('pointermove', (e) => {
       if (drag.lpTimer) clearTimeout(drag.lpTimer);   // a drag is not a long-press
     }
     if (drag.moved && !drag.consumed) {
-      if (drag.shift) {
+      if (drag.pan) {
+        panX = drag.panX0 + dx;
+        panY = drag.panY0 + dy;
+        clampPan();
+      } else if (drag.shift) {
         // free 4D rotation, à la MagicCube4D's shift-drag: dx -> X-W plane, dy -> Y-W plane
         const d4 = matMul4(rotFloat(X, W, dx * ROT4D_SENS), rotFloat(Y, W, -dy * ROT4D_SENS));
         view4 = matMul4(d4, drag.base4);
@@ -1186,7 +1242,14 @@ canvas.addEventListener('pointercancel', onPointerUp);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * (e.deltaY < 0 ? 1.08 : 0.926)));
+  const z2 = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * (e.deltaY < 0 ? 1.08 : 0.926)));
+  // zoom toward the cursor: the point under the pointer stays put on screen,
+  // so zooming in never yanks you back to the centre of the cube
+  const f = z2 / zoom;
+  panX = e.clientX - cx - (e.clientX - cx - panX) * f;
+  panY = e.clientY - cy - (e.clientY - cy - panY) * f;
+  zoom = z2;
+  clampPan();
 }, { passive: false });
 
 // right-click is "twist reverse"; stop the browser context menu from popping up
@@ -1199,6 +1262,7 @@ window.addEventListener('keydown', (e) => {
   if (k === 's') { doScramble(); }
   else if (k === 'u') { doUndo(); }
   else if (k === 'r') { doReset(); }
+  else if (k === 'v') { resetView(); }
   else if (k === 't') { if (!tutorial.active) startTutorial(); }
   else if (k === 'h' || k === '?') { toggle(el.help); }
   else if (k === 'escape') { hide(el.help); hide(el.win); exitTutorial(); deselect(); }
@@ -1249,13 +1313,13 @@ document.querySelectorAll('.btn-mini').forEach(b => {
 el.undo.addEventListener('click', doUndo);
 el.reset.addEventListener('click', doReset);
 el.dockClose.addEventListener('click', deselect);
-el.viewReset.addEventListener('click', () => {
+function resetView() {
   if (anim) return;
-  yaw = -0.785; pitch = 0.615; zoom = 1.0;
+  yaw = -0.785; pitch = 0.615; zoom = 1.0; panX = 0; panY = 0;
   view3 = mat3FromYawPitch(yaw, pitch);
   view4 = I4();
-});
-document.getElementById('btn-help').addEventListener('click', () => show(el.help));
+}
+el.viewReset.addEventListener('click', resetView);
 document.getElementById('btn-help-top').addEventListener('click', () => show(el.help));
 document.getElementById('help-close').addEventListener('click', () => hide(el.help));
 document.getElementById('help-ok').addEventListener('click', () => hide(el.help));
@@ -1265,14 +1329,6 @@ el.tutExit.addEventListener('click', exitTutorial);
 el.tutNext.addEventListener('click', tutorialNext);
 el.tutPrev.addEventListener('click', () => { if (tutorial.step > 0) tutorialGoto(tutorial.step - 1); });
 el.winAgain.addEventListener('click', () => { hide(el.win); doScramble(); });
-
-document.querySelectorAll('.rbtn').forEach(b => {
-  b.addEventListener('click', () => {
-    const map = { xw: [X, W], yw: [Y, W], zw: [Z, W] };
-    const [i, j] = map[b.dataset.rot];
-    startViewRot(i, j, +b.dataset.dir);
-  });
-});
 
 el.legendToggle.addEventListener('click', () => {
   el.legendGrid.classList.toggle('collapsed');

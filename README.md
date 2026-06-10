@@ -81,16 +81,19 @@ steps wait until you actually perform them, and the course ends with guided
 | Action | Control |
 | --- | --- |
 | Orbit the view (3D) | Drag |
-| Zoom | Scroll / pinch |
+| Zoom (toward the cursor) | Scroll / pinch |
+| Pan the view | Right-drag or `Alt`+drag · two-finger drag (touch) |
+| Reset the camera | **Reset view** button (top right) or `V` |
 | Select a cell | Click any sticker — the cell lights up and the twist panel opens |
 | Twist the selected cell | The panel's ↺ / ↻ buttons, or keys `1` `2` `3` (`Shift` reverses) |
 | Diagonal grips | Select an **edge or corner block** — the panel adds its 180° flip / 120° spin |
 | Bring a cell to the centre | `Ctrl`+click, or press and hold (touch) — a pure view change |
-| Rotate through the 4th dimension | `Shift`+drag, or the **XW/YW/ZW** buttons |
+| Rotate through the 4th dimension | `Shift`+drag |
 | Scramble · Undo · Reset · Tutorial | `S` · `U` · `R` · `T` |
 
-**Tip:** because cells hide behind one another, rotate in 4D (or ctrl-click a
-cell to centre it) to bring a buried cell into view before working on it.
+**Tip:** because cells hide behind one another, ctrl-click (or hold) a cell to
+centre it before working on it — centring also cycles the hidden cell back
+into view.
 
 ## Files
 
