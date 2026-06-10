@@ -33,8 +33,11 @@ the 8 cells is a distinct shade.
   **three** planes perpendicular to the cell's axis. (A 3D cube has only *one*
   such plane per face; the extra planes are what makes this 4-dimensional.)
 - Every scramble is generated from the same moves you can make, so it is
-  **always solvable**. Solving is verified by checking that all 80 pieces are
-  home *and* correctly oriented.
+  **always solvable**. Solving uses the *visual* criterion (as in MagicCube4D):
+  every cell must be a single colour — hidden orientations of pieces whose
+  stickers carry no visible information are not required.
+- The 8 cells use a **pastel palette** with hues spaced ~45° apart, and opposite
+  cells get maximally different hues, so every cell stays recognisable at a glance.
 
 The geometry pipeline is: sticker cube (in 4D) → rotate in 4D (view + twist
 animation) → perspective-project **4D → 3D** → orbit → perspective-project
@@ -42,31 +45,38 @@ animation) → perspective-project **4D → 3D** → orbit → perspective-proje
 
 ## How to play
 
+New here? Hit the **Tutorial** button (or press `T`) for an interactive,
+step-by-step walkthrough that teaches every control and ends with guided
+1-move and 2-move practice solves on the real puzzle.
+
 | Action | Control |
 | --- | --- |
 | Orbit the view (3D) | Drag |
-| Zoom | Scroll |
-| Select a cell | Click any tile |
-| Twist the selected cell | Twist panel, or keys `1` `2` `3` (hold `Shift` to reverse) |
-| Rotate through the 4th dimension | **4D rotation** panel (brings hidden cells into view) |
-| Scramble · Undo · Reset | `S` · `U` · `R` |
+| Zoom | Scroll / pinch |
+| Twist a cell | Click any sticker (where you hit — face, edge or corner block — decides the turn) |
+| Twist in reverse | Right-click or `Shift`+click |
+| Exact-plane twist | Click a sticker to select its cell, then use the twist panel or keys `1` `2` `3` (`Shift` reverses) |
+| Bring a cell to the centre | `Ctrl`+click, or press and hold (touch) — a pure view change |
+| Rotate through the 4th dimension | `Shift`+drag, or the **XW/YW/ZW** buttons |
+| Scramble · Undo · Reset · Tutorial | `S` · `U` · `R` · `T` |
 
-**Tip:** because cells hide behind one another, use the *4D rotation* buttons to
-bring a buried cell to the outside before working on it.
+**Tip:** because cells hide behind one another, rotate in 4D (or ctrl-click a
+cell to centre it) to bring a buried cell into view before working on it.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | Markup + HUD panels |
-| `styles.css` | Dark, glassy theme (white / grey / blue, gradients, subtle 3D) |
-| `app.js` | 4D model, twist engine, projection, renderer, input |
+| `index.html` | Markup + HUD panels + tutorial card |
+| `styles.css` | Dark, glassy theme around the pastel puzzle |
+| `app.js` | 4D model, twist engine, projection, renderer, input, interactive tutorial |
 
 ## Tweaking
 
 All visual/geometry constants live at the top of `app.js`:
 
-- `COLORS` — the 8 cell colours
+- `COLORS` — the 8 pastel cell colours
 - `FACE_SHRINK` — how far apart the cells sit (lower = more separation / easier to see inside)
+- `CENTER_SHRINK` — size of the nested central cube (larger = bigger centre)
 - `STICKER_HALF` — sticker size
 - `V4D` / `V3D` — 4D and 3D camera distances (inner-vs-outer size ratio, perspective strength)

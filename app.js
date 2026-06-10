@@ -21,16 +21,18 @@
 const X = 0, Y = 1, Z = 2, W = 3;
 const AXN = ['X', 'Y', 'Z', 'W'];
 
-// 8 cool-toned cell colours (white / grey / blue family, kept distinguishable)
+// 8 pastel cell colours, hue-spaced ~45° apart so every cell reads distinctly;
+// opposite cells (X+/X-, ...) get maximally different hues since both are
+// usually visible at the same time.
 const COLORS = {
-  'X+': '#eef3fb', // soft white
-  'X-': '#2fd0e6', // cyan
-  'Y+': '#5aa0f2', // sky blue
-  'Y-': '#2a55cf', // royal blue
-  'Z+': '#1f74d0', // azure
-  'Z-': '#8493ad', // slate grey
-  'W+': '#25c4ad', // teal
-  'W-': '#9a8bff', // periwinkle
+  'X+': '#f8c89a', // pastel apricot
+  'X-': '#a4d8f0', // pastel sky blue
+  'Y+': '#b7e6a8', // pastel green
+  'Y-': '#dcb4ee', // pastel lilac
+  'Z+': '#f3e69a', // pastel lemon
+  'Z-': '#b3b9f2', // pastel periwinkle
+  'W+': '#a3e8cf', // pastel mint
+  'W-': '#f5b3c8', // pastel pink — the nested centre cube, the most prominent cell
 };
 const CELL_LABEL = {
   'W+': 'Outer',   'W-': 'Inner',
@@ -44,8 +46,11 @@ const G = 1.0;          // lattice spacing
 const B = 1.65;         // cell-boundary distance along the normal axis
 const FACE_SHRINK = 0.33; // lateral cell size (X/Y/Z in-cell axes): smaller -> slimmer arms + bigger gaps
 const FACE_SHRINK_W = 0.60; // W in-cell axis spread: larger -> side cells stretch along W -> stronger frustum taper
-const CENTER_SHRINK = 0.44; // the inner/outer W-cells (the nested central cube): larger -> bigger central cube
+const CENTER_SHRINK = 0.62; // the inner/outer W-cells (the nested central cube): larger -> bigger central cube
 const STICKER_HALF = 0.115; // sticker half-size in its in-cell axes (smaller = bigger see-through gaps)
+const STICKER_HALF_W = 0.175; // sticker half-size on the W-cells: the 4D projection shrinks the
+                              // nested centre cube by ~2x, so its blocks get a bigger base size
+                              // to keep the central cube visually in proportion
 const V4D = 2.05;       // 4D camera distance — small = strong perspective = dramatic frustums (MagicCube4D look)
 const V3D = 7.6;        // 3D camera distance
 const PROJ_MIN = 0.34;  // clamp on (V4D - w) so strong 4D perspective can't blow up during 4D rotation
@@ -226,6 +231,7 @@ function facingOf(piece, sticker) {
 // cells separate and the nested 4D structure becomes visible (MagicCube4D-style).
 function stickerCorners(cur, fa, fs) {
   const inAx = [0,1,2,3].filter(a => a !== fa);
+  const half = fa === W ? STICKER_HALF_W : STICKER_HALF;
   const out = [];
   for (let b = 0; b < 8; b++) {
     const c = [0,0,0,0];
@@ -236,7 +242,7 @@ function stickerCorners(cur, fa, fs) {
       // W-cells (inner/outer nested cubes) get a uniform, slightly larger spread;
       // side cells stretch their W in-cell axis for the frustum taper.
       const shr = (fa === W) ? CENTER_SHRINK : (ax === W ? FACE_SHRINK_W : FACE_SHRINK);
-      c[ax] = cur[ax] * G * shr + (bit ? STICKER_HALF : -STICKER_HALF);
+      c[ax] = cur[ax] * G * shr + (bit ? half : -half);
     }
     out.push(c);
   }
@@ -403,7 +409,9 @@ function render() {
 
         const depth = (a.cz + b.cz + c.cz + d.cz) / 4;
         const diff = Math.max(0, dot3(n, LIGHT));
-        const shade = 0.60 + 0.55 * diff;
+        // capped at 1.0: the pastel palette is bright, so anything above would
+        // clip channels at 255 and wash the hues out
+        const shade = 0.58 + 0.42 * diff;
 
         faces.push({
           poly: [[a.x,a.y],[b.x,b.y],[c.x,c.y],[d.x,d.y]],
@@ -492,6 +500,7 @@ function startTwistAxis(d, sd, inAx, u3, theta, opts = {}) {
 function startViewRot(i, j, dir) {
   if (anim) return false;
   anim = { type: 'view', mode: 'plane', i, j, dir, t: 0, dur: 420, base: view4 };
+  tutorialEvent('rot4d');
   return true;
 }
 // Reorient the 4D view so the clicked cell rotates to the centre (the small nested
@@ -508,6 +517,7 @@ function startCenterCell(d, sd, reverse) {
   const theta = Math.acos(Math.max(-1, Math.min(1, dot4(from, to))));
   if (theta < 1e-3) return false;         // already centred
   anim = { type: 'view', mode: 'geo', from, to, base: view4, t: 0, dur: 460 };
+  tutorialEvent('center');
   return true;
 }
 
@@ -548,6 +558,7 @@ function tick(now) {
 }
 
 function afterMove(countDelta, record) {
+  if (record && countDelta > 0) tutorialEvent('twist');
   if (scrambledOnce) {
     moves = Math.max(0, moves + countDelta);
     if (!timing && !solvedState && countDelta > 0) { timing = true; startT = performance.now(); }
@@ -566,6 +577,9 @@ function updateClock() { el.time.textContent = fmt(performance.now() - startT); 
 
 // ----------------------------------------------------------------- actions
 function doScramble(n = 26) {
+  // drop any in-flight twist animation first — letting it commit on top of the
+  // fresh scramble would silently add a move and corrupt the history/counter
+  anim = null;
   // reset to solved, then apply random generators instantly
   for (const p of pieces) { p.cur = p.solved.slice(); p.rot = I4(); }
   let last = -1;
@@ -609,15 +623,117 @@ function doUndo() {
   const m = history.pop();
   if (m.mode === 'axis') startTwistAxis(m.d, m.sd, m.inAx, m.u3, -m.theta, { record: false, countDelta: -1 });
   else startTwist(m.d, m.sd, m.i, m.j, -m.dir, { record: false, countDelta: -1 });
+  tutorialEvent('undo');
 }
 
 function win() {
   solvedState = true;
   timing = false;
   finalMs = performance.now() - startT;
+  if (tutorial.active) { tutorialEvent('solved'); return; } // tutorial handles its own praise
   el.winTime.textContent = fmt(finalMs);
   el.winMoves.textContent = moves;
-  setTimeout(() => show(el.win), 520);
+  // guard: if the player scrambles again within the delay, don't pop the overlay
+  setTimeout(() => { if (solvedState) show(el.win); }, 520);
+}
+
+// ----------------------------------------------------------------- tutorial
+// A guided, interactive walkthrough: each step waits for the player to actually
+// perform the action (detected via tutorialEvent hooks in the engine), then
+// auto-advances. The two practice steps scramble the real puzzle and watch for
+// isSolved(), so the player learns on the genuine mechanics, not a mock-up.
+const TUT_STEPS = [
+  {
+    title: 'Welcome to the Tesseract',
+    text: 'This is a <b>4D Rubik\'s cube</b>. Instead of 6 flat faces it has <b>8 cubic cells</b>: the big cube in the middle, the outer frame, and the six "tunnels" between them. <b>Goal:</b> make every cell a single colour. Let\'s learn the controls — each step waits for you to try it.',
+  },
+  {
+    title: 'Look around (3D)',
+    detect: 'orbit',
+    text: '<b>Drag</b> anywhere to orbit the cube in 3D. <b>Scroll</b> or <b>pinch</b> to zoom. Try dragging now!',
+  },
+  {
+    title: 'Rotate through the 4th dimension',
+    detect: 'rot4d',
+    text: 'Press any <b>XW / YW / ZW</b> button (top right) — or <b>Shift+drag</b> — and watch the middle cube trade places with another cell. This only changes your viewpoint, never the puzzle. Try it!',
+  },
+  {
+    title: 'Bring a cell to the centre',
+    detect: 'center',
+    text: '<b>Ctrl+click</b> a cell — or <b>press and hold</b> it — and it spins into the middle. Use this to inspect any colour up close. Also just a view change. Try it on any cell!',
+  },
+  {
+    title: 'Make a twist',
+    detect: 'twist',
+    text: '<b>Click any sticker</b> to twist its cell. Where you hit it — a face, edge or corner block — decides how it turns. <b>Right-click</b> or <b>Shift+click</b> turns the other way. Make a twist now!',
+  },
+  {
+    title: 'Undo',
+    detect: 'undo',
+    text: 'Your twist scrambled things a little. Press <b>Undo</b> (or <b>U</b>) to take it back — undo is your best friend while learning. Try it!',
+  },
+  {
+    title: 'Practice: solve 1 move',
+    detect: 'solved',
+    onEnter: () => doScramble(1),
+    text: 'We scrambled the cube with <b>one twist</b>. Find the cell with off-colour stickers (rotate in 4D if you need to) and click a moved block to twist it back. Wrong direction? <b>Undo</b> and try the reverse (right-click).',
+  },
+  {
+    title: 'Practice: solve 2 moves',
+    detect: 'solved',
+    onEnter: () => doScramble(2),
+    text: 'Now <b>two twists</b>. Solve them in reverse order: turn back the <i>last</i> scramble move first, then the first one. Take your time — <b>Undo</b> works on your own attempts.',
+  },
+  {
+    title: 'You\'re ready',
+    text: 'A real solve goes <b>cell by cell</b>: pick a colour, bring that cell to the centre, gather its pieces, then move on — like solving a 3D cube layer by layer, one dimension up. Press <b>Scramble</b> when you\'re ready. Good luck!',
+  },
+];
+const tutorial = { active: false, step: 0, done: false, advT: null };
+
+function startTutorial() {
+  hide(el.help); hide(el.win);
+  doReset();
+  tutorial.active = true;
+  show(el.tutorial);
+  tutorialGoto(0);
+  toast('Tutorial started');
+}
+function exitTutorial() {
+  if (!tutorial.active) return;
+  tutorial.active = false;
+  clearTimeout(tutorial.advT);
+  hide(el.tutorial);
+  doReset();
+}
+function tutorialGoto(n) {
+  clearTimeout(tutorial.advT);
+  tutorial.step = n;
+  tutorial.done = false;
+  const st = TUT_STEPS[n];
+  el.tutTitle.textContent = st.title;
+  el.tutText.innerHTML = st.text;
+  el.tutCheck.hidden = true;
+  el.tutPrev.disabled = n === 0;
+  // steps that wait for an action label the forward button "Skip" until done
+  el.tutNext.textContent = n === TUT_STEPS.length - 1 ? 'Finish' : (st.detect ? 'Skip' : 'Next');
+  el.tutProgress.innerHTML = TUT_STEPS
+    .map((_, i) => `<i class="${i < n ? 'past' : i === n ? 'now' : ''}"></i>`)
+    .join('');
+  if (st.onEnter) st.onEnter();
+}
+function tutorialNext() {
+  clearTimeout(tutorial.advT);
+  if (tutorial.step >= TUT_STEPS.length - 1) { exitTutorial(); toast('Tutorial complete — have fun!'); return; }
+  tutorialGoto(tutorial.step + 1);
+}
+function tutorialEvent(type) {
+  if (!tutorial.active || tutorial.done) return;
+  if (TUT_STEPS[tutorial.step].detect !== type) return;
+  tutorial.done = true;
+  el.tutCheck.hidden = false;
+  el.tutNext.textContent = tutorial.step === TUT_STEPS.length - 1 ? 'Finish' : 'Next';
+  tutorial.advT = setTimeout(tutorialNext, 1200);
 }
 
 // ----------------------------------------------------------------- selection
@@ -768,10 +884,12 @@ canvas.addEventListener('pointermove', (e) => {
         // free 4D rotation, à la MagicCube4D's shift-drag: dx -> X-W plane, dy -> Y-W plane
         const d4 = matMul4(rotFloat(X, W, dx * ROT4D_SENS), rotFloat(Y, W, -dy * ROT4D_SENS));
         view4 = matMul4(d4, drag.base4);
+        tutorialEvent('rot4d');
       } else {
         yaw = drag.yaw0 + dx * 0.008;
         pitch = Math.max(-1.35, Math.min(1.35, drag.pitch0 + dy * 0.008));
         view3 = mat3FromYawPitch(yaw, pitch);
+        tutorialEvent('orbit');
       }
     }
   } else if (pointers.size === 0) {
@@ -836,8 +954,9 @@ window.addEventListener('keydown', (e) => {
   if (k === 's') { doScramble(); }
   else if (k === 'u') { doUndo(); }
   else if (k === 'r') { doReset(); }
+  else if (k === 't') { if (!tutorial.active) startTutorial(); }
   else if (k === 'h' || k === '?') { toggle(el.help); }
-  else if (k === 'escape') { hide(el.help); hide(el.win); deselect(); }
+  else if (k === 'escape') { hide(el.help); hide(el.win); exitTutorial(); deselect(); }
   else if (selected && ['1','2','3'].includes(k)) {
     const planes = planesFor(selected.d);
     const [i, j] = planes[+k - 1];
@@ -866,6 +985,14 @@ const el = {
   winMoves: document.getElementById('win-moves'),
   winAgain: document.getElementById('win-again'),
   toast: document.getElementById('toast'),
+  tutorial: document.getElementById('tutorial'),
+  tutTitle: document.getElementById('tut-title'),
+  tutText: document.getElementById('tut-text'),
+  tutCheck: document.getElementById('tut-check'),
+  tutPrev: document.getElementById('tut-prev'),
+  tutNext: document.getElementById('tut-next'),
+  tutExit: document.getElementById('tut-exit'),
+  tutProgress: document.getElementById('tut-progress'),
 };
 
 el.scramble.addEventListener('click', () => doScramble());
@@ -885,6 +1012,11 @@ document.getElementById('btn-help').addEventListener('click', () => show(el.help
 document.getElementById('btn-help-top').addEventListener('click', () => show(el.help));
 document.getElementById('help-close').addEventListener('click', () => hide(el.help));
 document.getElementById('help-ok').addEventListener('click', () => hide(el.help));
+document.getElementById('btn-tutorial').addEventListener('click', () => { if (!tutorial.active) startTutorial(); });
+document.getElementById('help-tutorial').addEventListener('click', () => { if (!tutorial.active) startTutorial(); else hide(el.help); });
+el.tutExit.addEventListener('click', exitTutorial);
+el.tutNext.addEventListener('click', tutorialNext);
+el.tutPrev.addEventListener('click', () => { if (tutorial.step > 0) tutorialGoto(tutorial.step - 1); });
 el.winAgain.addEventListener('click', () => { hide(el.win); doScramble(); });
 
 document.querySelectorAll('.rbtn').forEach(b => {

@@ -1,5 +1,6 @@
 /* ============================================================
-   Tesseract · 4D Rubik's Cube — dark, minimal, glassy
+   Tesseract · 4D Rubik's Cube — dark, minimal, glassy UI
+   around a pastel-coloured puzzle
    ============================================================ */
 
 :root {
@@ -395,6 +396,33 @@ body {
   box-shadow: 0 2px 0 rgba(0,0,0,0.3);
 }
 
+.help-card .btn-wide + .btn-wide { margin-top: 9px; }
+
+/* ----------------------------------------------------------- tutorial */
+.hud-tutorial {
+  right: 22px; bottom: 26px; width: 312px;
+  padding: 16px 18px 15px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.05);
+  animation: pop .35s cubic-bezier(.2,.9,.25,1);
+}
+.hud-tutorial[hidden] { display: none; }
+.tut-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tut-progress { display: flex; gap: 5px; }
+.tut-progress i { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); transition: background .25s; }
+.tut-progress i.past { background: var(--accent); opacity: 0.5; }
+.tut-progress i.now { background: var(--accent-2); box-shadow: 0 0 8px var(--glow); }
+.hud-tutorial h3 { font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 6px; }
+.hud-tutorial p { font-size: 12.5px; line-height: 1.6; color: var(--ink-dim); min-height: 60px; }
+.hud-tutorial p b { color: var(--ink); }
+.tut-foot { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
+.tut-check { font-size: 12.5px; font-weight: 650; color: #b7e6a8; }
+.tut-check[hidden] { display: none; }
+.tut-nav { display: flex; gap: 8px; margin-left: auto; }
+.tut-nav .btn { height: 34px; padding: 0 14px; font-size: 12.5px; }
+
 /* toast */
 .toast {
   position: absolute; left: 50%; top: 86px; transform: translateX(-50%);
@@ -441,6 +469,8 @@ body {
     justify-content: center; gap: 8px;
   }
   .hud-actions .btn { flex: 1; justify-content: center; height: 48px; padding: 0 8px; }
+  #btn-tutorial { flex: 0 0 48px; }
+  #btn-tutorial span { display: none; }
   .scramble-mini { flex: 1; height: 48px; padding: 0 5px; gap: 5px; }
   .scramble-mini .mini-label { display: none; }
   .hud-actions .btn-mini { flex: 1; width: auto; height: 40px; }
@@ -472,6 +502,14 @@ body {
   }
   .twist-row .axis-tag { grid-column: 1 / -1; justify-content: center; font-size: 11px; }
   .twist-row .tw { width: 100%; height: 38px; }
+
+  /* tutorial -> card pinned under the top bar so the bottom controls stay free */
+  .hud-tutorial {
+    right: 12px; left: 12px; width: auto; bottom: auto;
+    top: calc(env(safe-area-inset-top) + 64px);
+    padding: 13px 14px 12px;
+  }
+  .hud-tutorial p { min-height: 0; }
 
   .toast { top: calc(env(safe-area-inset-top) + 66px); }
   .win-card, .help-card { width: min(420px, 92vw); padding: 28px 22px 24px; }
