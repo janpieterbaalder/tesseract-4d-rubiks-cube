@@ -354,10 +354,10 @@ let frontCell = null; // the currently culled (hidden) cell {fa, fs}
 function render() {
   ctx.clearRect(0, 0, cssW, cssH);
 
-  // soft central halo for depth
+  // soft central halo for depth — a quiet pastel lilac/blue blend
   const halo = ctx.createRadialGradient(cx, cy - 10, 30, cx, cy - 10, Math.min(cssW, cssH) * 0.62);
-  halo.addColorStop(0, 'rgba(58, 104, 190, 0.16)');
-  halo.addColorStop(0.5, 'rgba(40, 72, 150, 0.05)');
+  halo.addColorStop(0, 'rgba(150, 140, 205, 0.15)');
+  halo.addColorStop(0.5, 'rgba(105, 110, 175, 0.05)');
   halo.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, cssW, cssH);
@@ -379,6 +379,7 @@ function render() {
 
   for (const piece of pieces) {
     const inSlab = selected && piece.cur[selected.d] === selected.sd;
+    const picked = selected && selected.piece === piece;
     const useAnim = animSet && animSet.has(piece) ? animMat : null;
 
     for (const st of piece.stickers) {
@@ -409,12 +410,13 @@ function render() {
         const depth = (a.cz + b.cz + c.cz + d.cz) / 4;
         const diff = Math.max(0, dot3(n, LIGHT));
         // capped at 1.0: the pastel palette is bright, so anything above would
-        // clip channels at 255 and wash the hues out
-        const shade = 0.58 + 0.42 * diff;
+        // clip channels at 255 and wash the hues out; the selected cell gets a
+        // visible lift so "what will turn" is unmistakable
+        const shade = (0.58 + 0.42 * diff) * (inSlab ? 1.12 : 1);
 
         faces.push({
           poly: [[a.x,a.y],[b.x,b.y],[c.x,c.y],[d.x,d.y]],
-          depth, cubeCz: ccz, shade, rgb: st.rgb, inSlab, piece, sticker: st,
+          depth, cubeCz: ccz, shade, rgb: st.rgb, inSlab, picked, piece, sticker: st,
           twistAxis: inAx[face.axis], // global in-cell axis this face turns about
         });
       }
@@ -451,9 +453,13 @@ function render() {
     ctx.fillStyle = `rgb(${R|0},${Gc|0},${Bc|0})`;
     ctx.fill();
 
-    if (f.inSlab) {
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = 'rgba(190, 220, 255, 0.85)';
+    if (f.picked) {
+      ctx.lineWidth = 2.6;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.stroke();
+    } else if (f.inSlab) {
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = 'rgba(200, 228, 255, 0.9)';
       ctx.stroke();
     } else {
       ctx.lineWidth = 1;
@@ -469,13 +475,20 @@ function render() {
 // ----------------------------------------------------------------- animation
 function ease(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
 
-// 90-degree plane twist (dock / keyboard / face-grip / scramble-undo)
+// animation durations (ms) — deliberately unhurried so every twist is readable
+const DUR_TWIST = 520;      // 90-degree plane twist
+const DUR_GRIP = 620;       // 120-degree corner grip
+const DUR_GRIP_180 = 720;   // 180-degree edge grip
+const DUR_VIEW = 700;       // stepped 4D view rotation
+const DUR_CENTER = 820;     // rotate-cell-to-centre view move
+
+// 90-degree plane twist (dock / keyboard / scramble-undo)
 function startTwist(d, sd, i, j, dir, opts = {}) {
   if (anim) return false;
   anim = {
     type: 'twist', mode: 'plane', d, sd, i, j, dir,
     set: new Set(pieces.filter(p => p.cur[d] === sd)),
-    t: 0, dur: opts.dur || 250, angle: 0, target: dir * Math.PI / 2,
+    t: 0, dur: opts.dur || DUR_TWIST, angle: 0, target: dir * Math.PI / 2,
     record: opts.record !== false,
     countDelta: opts.countDelta == null ? 1 : opts.countDelta,
     onDone: opts.onDone,
@@ -488,7 +501,7 @@ function startTwistAxis(d, sd, inAx, u3, theta, opts = {}) {
   anim = {
     type: 'twist', mode: 'axis', d, sd, inAx, u3, theta,
     set: new Set(pieces.filter(p => p.cur[d] === sd)),
-    t: 0, dur: opts.dur || (Math.abs(theta) > 2.2 ? 300 : 260), angle: 0, target: theta,
+    t: 0, dur: opts.dur || (Math.abs(theta) > 2.2 ? DUR_GRIP_180 : DUR_GRIP), angle: 0, target: theta,
     record: opts.record !== false,
     countDelta: opts.countDelta == null ? 1 : opts.countDelta,
     onDone: opts.onDone,
@@ -498,7 +511,7 @@ function startTwistAxis(d, sd, inAx, u3, theta, opts = {}) {
 
 function startViewRot(i, j, dir) {
   if (anim) return false;
-  anim = { type: 'view', mode: 'plane', i, j, dir, t: 0, dur: 420, base: view4 };
+  anim = { type: 'view', mode: 'plane', i, j, dir, t: 0, dur: DUR_VIEW, base: view4 };
   tutorialEvent('rot4d');
   return true;
 }
@@ -515,7 +528,7 @@ function startCenterCell(d, sd, reverse) {
   const to   = reverse ? cur : ctr;
   const theta = Math.acos(Math.max(-1, Math.min(1, dot4(from, to))));
   if (theta < 1e-3) return false;         // already centred
-  anim = { type: 'view', mode: 'geo', from, to, base: view4, t: 0, dur: 460 };
+  anim = { type: 'view', mode: 'geo', from, to, base: view4, t: 0, dur: DUR_CENTER };
   tutorialEvent('center');
   return true;
 }
@@ -649,64 +662,192 @@ function win() {
 // 3^4: Roice Nelson's "Ultimate Solution to a 3x3x3x3" (superliminal.com) and
 // the modern methods documented on hypercubing.xyz — two-colour pieces first,
 // then three-colour, then four-colour, finishing with the RKT technique.
+// Inline SVG illustrations for the tutorial card. Lightly animated via the
+// ta-* CSS classes in styles.css (spin / dash-flow / pulse / slide).
+function taCellGrid(x0, y0, s, hotR, hotC) {
+  let out = '';
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    const hot = r === hotR && c === hotC;
+    out += `<rect x="${x0 + c * s}" y="${y0 + r * s}" width="${s - 3}" height="${s - 3}" rx="2.5" fill="${hot ? '#f5b3c8' : '#2a3550'}"${hot ? ' class="ta-pulse"' : ''}/>`;
+  }
+  return out;
+}
+function taDice(n) {
+  const pips = { 1: [[0,0]], 2: [[-1,-1],[1,1]], 3: [[-1,-1],[0,0],[1,1]] }[n]
+    .map(([dx,dy]) => `<circle cx="${140 + dx * 13}" cy="${48 + dy * 13}" r="5.5" fill="#0b1020"/>`).join('');
+  return `<svg viewBox="0 0 280 96" fill="none"><rect x="112" y="20" width="56" height="56" rx="12" fill="#f3e69a" class="ta-pulse"/>${pips}</svg>`;
+}
+const TUT_ART = {
+  tesseract: `<svg viewBox="0 0 280 96">
+    <rect x="102" y="8" width="76" height="80" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
+    <rect x="124" y="31" width="32" height="34" rx="4" fill="none" stroke="#f5b3c8" stroke-width="2" class="ta-pulse"/>
+    <path d="M102 8L124 31M178 8L156 31M102 88L124 65M178 88L156 65" fill="none" stroke="#65728c" stroke-width="1.4"/>
+  </svg>`,
+  cells: `<svg viewBox="0 0 280 96">
+    <rect x="102" y="8" width="76" height="80" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
+    <path d="M102 8h76l-22 23h-32z" fill="#b7e6a8" opacity=".4"/>
+    <path d="M102 88h76l-22-23h-32z" fill="#dcb4ee" opacity=".4"/>
+    <path d="M102 8v80l22-23V31z" fill="#f3e69a" opacity=".35"/>
+    <path d="M178 8v80l-22-23V31z" fill="#f8c89a" opacity=".4"/>
+    <rect x="124" y="31" width="32" height="34" rx="4" fill="#f5b3c8" opacity=".55" stroke="#f5b3c8"/>
+    <text x="14" y="28" fill="#9fb0cc" font-size="10">frame = a cell</text>
+    <path d="M74 32l27-10" fill="none" stroke="#65728c" stroke-width="1"/>
+    <text x="198" y="56" fill="#9fb0cc" font-size="10">centre = a cell</text>
+    <path d="M196 52l-38-2" fill="none" stroke="#65728c" stroke-width="1"/>
+  </svg>`,
+  orbit: `<svg viewBox="0 0 280 96">
+    <path d="M118 35l22-9 22 9-22 9z" fill="#c4e4f5"/>
+    <path d="M118 35v22l22 9V44z" fill="#7fb6d9"/>
+    <path d="M162 35v22l-22 9V44z" fill="#a4d8f0"/>
+    <ellipse cx="140" cy="50" rx="58" ry="24" fill="none" stroke="#9fb0cc" stroke-width="1.6" class="ta-dash"/>
+    <path d="M196 60l9-2-5 8z" fill="#9fb0cc"/>
+  </svg>`,
+  rot4d: `<svg viewBox="0 0 280 96">
+    <rect x="104" y="10" width="72" height="76" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
+    <rect x="126" y="32" width="28" height="32" rx="4" fill="none" stroke="#f5b3c8" stroke-width="2"/>
+    <path d="M88 48c-18-26 18-44 52-34" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
+    <path d="M136 9l9 2-6 7z" fill="#a3e8cf"/>
+    <path d="M192 48c18 26-18 44-52 34" fill="none" stroke="#f3e69a" stroke-width="2" class="ta-dash"/>
+    <path d="M144 87l-9-2 6-7z" fill="#f3e69a"/>
+  </svg>`,
+  center: `<svg viewBox="0 0 280 96">
+    <circle cx="118" cy="48" r="17" fill="none" stroke="#65728c" stroke-width="1.4" stroke-dasharray="4 5"/>
+    <path d="M118 26v-8M118 70v8M96 48h-8M140 48h8" fill="none" stroke="#65728c" stroke-width="1.4"/>
+    <rect x="172" y="36" width="24" height="24" rx="5" fill="#b7e6a8" class="ta-slide"/>
+  </svg>`,
+  pieces: `<svg viewBox="0 0 280 96">
+    <rect x="22" y="22" width="36" height="36" rx="6" fill="#f5b3c8"/><text x="40" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">1c ×8</text>
+    <path d="M88 22h36v36z" fill="#b7e6a8"/><path d="M88 22v36h36z" fill="#a4d8f0"/><rect x="88" y="22" width="36" height="36" rx="6" fill="none" stroke="#0b1020"/><text x="106" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">2c ×24</text>
+    <rect x="154" y="22" width="12" height="36" fill="#f3e69a"/><rect x="166" y="22" width="12" height="36" fill="#dcb4ee"/><rect x="178" y="22" width="12" height="36" fill="#a3e8cf"/><rect x="154" y="22" width="36" height="36" rx="6" fill="none" stroke="#0b1020"/><text x="172" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">3c ×32</text>
+    <rect x="220" y="22" width="18" height="18" fill="#f8c89a"/><rect x="238" y="22" width="18" height="18" fill="#b3b9f2"/><rect x="220" y="40" width="18" height="18" fill="#b7e6a8"/><rect x="238" y="40" width="18" height="18" fill="#f5b3c8"/><rect x="220" y="22" width="36" height="36" rx="6" fill="none" stroke="#0b1020"/><text x="238" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">4c ×16</text>
+  </svg>`,
+  twist: `<svg viewBox="0 0 280 96">
+    <g class="ta-spin">
+      <rect x="112" y="20" width="17" height="17" rx="3" fill="#a4d8f0"/><rect x="132" y="20" width="17" height="17" rx="3" fill="#f3e69a"/><rect x="152" y="20" width="17" height="17" rx="3" fill="#b7e6a8"/>
+      <rect x="112" y="40" width="17" height="17" rx="3" fill="#f5b3c8"/><rect x="132" y="40" width="17" height="17" rx="3" fill="#dcb4ee"/><rect x="152" y="40" width="17" height="17" rx="3" fill="#f8c89a"/>
+      <rect x="112" y="60" width="17" height="17" rx="3" fill="#a3e8cf"/><rect x="132" y="60" width="17" height="17" rx="3" fill="#b3b9f2"/><rect x="152" y="60" width="17" height="17" rx="3" fill="#a4d8f0"/>
+    </g>
+    <path d="M208 56a68 40 0 0 0-26-36" fill="none" stroke="#9fb0cc" stroke-width="2" class="ta-dash"/>
+    <path d="M186 14l-9 1 5 8z" fill="#9fb0cc"/>
+  </svg>`,
+  grips: `<svg viewBox="0 0 280 96">
+    ${taCellGrid(34, 16, 15, 1, 1)}<text x="55" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">face 90°</text>
+    ${taCellGrid(118, 16, 15, 1, 0)}<text x="139" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">edge 180°</text>
+    ${taCellGrid(202, 16, 15, 0, 0)}<text x="223" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">corner 120°</text>
+  </svg>`,
+  undo: `<svg viewBox="0 0 280 96">
+    <path d="M180 70a36 36 0 1 0-70-10" fill="none" stroke="#a3e8cf" stroke-width="3" stroke-linecap="round" class="ta-dash"/>
+    <path d="M101 50l9 17 13-13z" fill="#a3e8cf"/>
+  </svg>`,
+  comm: `<svg viewBox="0 0 280 96">
+    <g class="ta-pop1"><rect x="34" y="30" width="40" height="36" rx="9" fill="#f5b3c8"/><text x="54" y="53" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A</text></g>
+    <g class="ta-pop2"><rect x="94" y="30" width="40" height="36" rx="9" fill="#a4d8f0"/><text x="114" y="53" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B</text></g>
+    <g class="ta-pop3"><rect x="154" y="30" width="40" height="36" rx="9" fill="#f5b3c8"/><text x="174" y="53" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A′</text></g>
+    <g class="ta-pop4"><rect x="214" y="30" width="40" height="36" rx="9" fill="#a4d8f0"/><text x="234" y="53" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B′</text></g>
+  </svg>`,
+  waves: `<svg viewBox="0 0 280 96">
+    <g class="ta-pop1"><circle cx="60" cy="38" r="17" fill="#b7e6a8"/><text x="60" y="42" fill="#15301c" font-size="10" font-weight="700" text-anchor="middle">2c</text><text x="60" y="76" fill="#9fb0cc" font-size="10" text-anchor="middle">24 pieces</text></g>
+    <g class="ta-pop2"><circle cx="140" cy="38" r="17" fill="#f3e69a"/><text x="140" y="42" fill="#3a3208" font-size="10" font-weight="700" text-anchor="middle">3c</text><text x="140" y="76" fill="#9fb0cc" font-size="10" text-anchor="middle">32 pieces</text></g>
+    <g class="ta-pop3"><circle cx="220" cy="38" r="17" fill="#f5b3c8"/><text x="220" y="42" fill="#3a2030" font-size="10" font-weight="700" text-anchor="middle">4c</text><text x="220" y="76" fill="#9fb0cc" font-size="10" text-anchor="middle">16 pieces</text></g>
+    <path d="M82 38h32M162 38h32" fill="none" stroke="#9fb0cc" stroke-width="1.6"/>
+    <path d="M112 33l9 5-9 5zM192 33l9 5-9 5z" fill="#9fb0cc"/>
+  </svg>`,
+  wave1: `<svg viewBox="0 0 280 96">
+    <rect x="121" y="14" width="18" height="18" rx="3" fill="none" stroke="#65728c" stroke-dasharray="3 3"/>
+    <rect x="103" y="32" width="18" height="18" rx="3" fill="#b7e6a8"/>
+    <rect x="121" y="32" width="18" height="18" rx="3" fill="#b7e6a8"/>
+    <rect x="139" y="32" width="18" height="18" rx="3" fill="#b7e6a8"/>
+    <rect x="121" y="50" width="18" height="18" rx="3" fill="#b7e6a8"/>
+    <g class="ta-slide2"><rect x="210" y="14" width="18" height="18" rx="3" fill="#b7e6a8"/><path d="M210 14l9-8 9 8z" fill="#a4d8f0"/></g>
+  </svg>`,
+  wave2: `<svg viewBox="0 0 280 96">
+    <rect x="129" y="8" width="22" height="22" rx="4" fill="#f3e69a"/>
+    <rect x="92" y="60" width="22" height="22" rx="4" fill="#dcb4ee"/>
+    <rect x="166" y="60" width="22" height="22" rx="4" fill="#a3e8cf"/>
+    <path d="M122 58l13-24M160 34l13 24M160 74h-40" fill="none" stroke="#9fb0cc" stroke-width="1.8" class="ta-dash"/>
+    <path d="M133 28l4-8 4 8zM176 52l4 9-9-1zM124 69l-8 5 8 5z" fill="#9fb0cc"/>
+  </svg>`,
+  rkt: `<svg viewBox="0 0 280 96">
+    <rect x="103" y="9" width="74" height="78" rx="7" fill="none" stroke="#b3b9f2" stroke-width="2"/>
+    ${taCellGrid(125, 33, 11, -1, -1).replace(/#2a3550/g, '#f5b3c8')}
+    <path d="M84 48h26M196 48h-26M140 92V72" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
+    <path d="M108 43l9 5-9 5zM172 43l-9 5 9 5zM135 76l5-9 5 9z" fill="#a3e8cf"/>
+    <text x="140" y="24" fill="#9fb0cc" font-size="10" text-anchor="middle">= a 3D cube!</text>
+  </svg>`,
+  dice1: taDice(1), dice2: taDice(2), dice3: taDice(3),
+  done: `<svg viewBox="0 0 280 96">
+    <path d="M140 12l10 21 23 3-17 16 4 23-20-11-20 11 4-23-17-16 23-3z" fill="#f3e69a" class="ta-pulse"/>
+  </svg>`,
+};
+
 const TUT_STEPS = [
   // ---- chapter 1: the shape -------------------------------------------------
   {
     ch: 'Chapter 1 · The shape',
     title: 'Welcome to the 4th dimension',
+    art: TUT_ART.tesseract,
     text: 'This course teaches you how the 4D cube works and a complete method to solve it. A 3D Rubik\'s cube has 6 flat faces; its 4D big brother has <b>8 cube-shaped cells</b>. What you see is a <i>projection</i> — the same trick as drawing a 3D cube on flat paper, one dimension up. <b>Goal:</b> make every cell a single colour.',
   },
   {
     ch: 'Chapter 1 · The shape',
     title: 'Reading the projection',
+    art: TUT_ART.cells,
     text: 'The <b>small cube in the middle</b> is one cell (the one furthest away in 4D). The six <b>tapering tunnels</b> around it are six more. The <b>outer frame</b> they all connect to is the 8th cell — and the cell nearest to you is <b>hidden</b>, exactly like the back face of a drawn 3D cube. All 8 cells are identical cubes; only the projection makes them look different.',
   },
   {
     ch: 'Chapter 1 · The shape',
     title: 'Look around (3D)',
     detect: 'orbit',
+    art: TUT_ART.orbit,
     text: '<b>Drag</b> anywhere to orbit the whole projection in 3D. <b>Scroll</b> or <b>pinch</b> to zoom. This never changes the puzzle. Try dragging now!',
   },
   {
     ch: 'Chapter 1 · The shape',
     title: 'Rotate through the 4th dimension',
     detect: 'rot4d',
+    art: TUT_ART.rot4d,
     text: 'Press any <b>XW / YW / ZW</b> button (top right) — or <b>Shift+drag</b> — and watch the cells trade places: the centre cube flies out into a tunnel and another cell takes its spot. Still just your viewpoint. This is how you find the hidden cell. Try it!',
   },
   {
     ch: 'Chapter 1 · The shape',
     title: 'Bring any cell to the centre',
     detect: 'center',
+    art: TUT_ART.center,
     text: '<b>Ctrl+click</b> a cell — or <b>press and hold</b> it — and it spins straight into the middle. While solving you\'ll do this constantly: centre the cell you\'re working on. Try it on any cell!',
   },
   // ---- chapter 2: the pieces ------------------------------------------------
   {
     ch: 'Chapter 2 · The pieces',
     title: 'Four kinds of pieces',
+    art: TUT_ART.pieces,
     text: 'Each cell is a 3×3×3 of blocks, and every block is a piece shared between cells:<br>· <b>8 centre pieces</b> (1 colour) — one per cell, they <i>never move</i> and define each cell\'s colour;<br>· <b>24 face pieces</b> (2 colours);<br>· <b>32 edge pieces</b> (3 colours);<br>· <b>16 corner pieces</b> (4 colours).<br>That\'s 80 moving pieces and about <b>1.8&times;10<sup>120</sup></b> positions — the 3D cube\'s 4.3&times;10<sup>19</sup> is a rounding error next to it.',
   },
   {
     ch: 'Chapter 2 · The pieces',
-    title: 'What a twist really does',
+    title: 'Select, then twist',
     detect: 'twist',
-    text: 'A twist grabs <b>one whole cell — all 27 blocks</b> — and rotates it, the 4D version of turning a face. <b>Click any sticker</b> and watch closely: the cell\'s own stickers swirl among themselves, while the pieces it shares with its six neighbour cells <b>hop from one neighbour to another</b>. That hop is how pieces travel around the puzzle. Twist now!',
+    art: TUT_ART.twist,
+    text: '<b>Click any sticker</b> — its cell lights up and the <b>twist panel</b> opens. Now press one of the <b>↺ / ↻ buttons</b>: the whole cell (all 27 blocks) rotates, and the pieces it shares with its six neighbours <b>hop between cells</b>. That hop is how pieces travel. Select a cell and twist it now!',
   },
   {
     ch: 'Chapter 2 · The pieces',
     title: 'The three grips',
     detect: 'twistAxis',
-    text: '<b>Where</b> you click a cell decides the turn:<br>· a <b>face block</b> → 90° turn;<br>· an <b>edge block</b> → 180° flip about that edge\'s diagonal;<br>· a <b>corner block</b> → 120° spin about that corner\'s diagonal.<br><b>Right-click</b>/<b>Shift</b> reverses. Try an <b>edge or corner block</b> now (any block that isn\'t a face centre).',
+    art: TUT_ART.grips,
+    text: '<b>Which block</b> you select matters. A <b>face block</b> offers the three 90° plane turns — but select an <b>edge block</b> and the panel adds a <b>180° flip</b>, or a <b>corner block</b> for a <b>120° spin</b> about its diagonal. Select an edge or corner block (anything that isn\'t a face centre) and press its grip button now!',
   },
   {
     ch: 'Chapter 2 · The pieces',
     title: 'Undo',
     detect: 'undo',
+    art: TUT_ART.undo,
     text: 'Press <b>Undo</b> (or <b>U</b>) to take your twist back — it remembers grips too. While learning, undo freely: exploring and rewinding is exactly how you build intuition. Try it!',
   },
   // ---- chapter 3: the core skill --------------------------------------------
   {
     ch: 'Chapter 3 · The core skill',
     title: 'The commutator',
+    art: TUT_ART.comm,
     text: 'Nearly every solving sequence on any twisty puzzle is a <b>commutator</b>: do <b>A</b>, do <b>B</b>, <b>undo A</b>, <b>undo B</b>. If A and B barely overlap, almost everything comes back — the net effect touches <i>just a few pieces</i>. That\'s how you move one piece <b>without wrecking what you\'ve already solved</b>.',
   },
   {
@@ -714,27 +855,32 @@ const TUT_STEPS = [
     title: 'Try a commutator',
     detect: 'twist',
     count: 4,
-    text: 'Do it for real: <b>twist one cell</b> (A), <b>twist a different cell</b> (B), then <b>reverse A</b> (right-click the same block you clicked first), then <b>reverse B</b>. Four twists — then study how few stickers actually changed. This pattern, plus patience, solves the whole puzzle.',
+    art: TUT_ART.comm,
+    text: 'Do it for real: select a cell and <b>twist it</b> (A), twist a <i>different</i> cell (B), then select the first cell again and press the <b>opposite arrow</b> (A′), and likewise undo B (B′). Four twists — then study how few stickers actually changed. This pattern, plus patience, solves the whole puzzle.',
   },
   // ---- chapter 4: the method ------------------------------------------------
   {
     ch: 'Chapter 4 · The method',
     title: 'The plan: three waves',
+    art: TUT_ART.waves,
     text: 'The proven route (Roice Nelson\'s <i>Ultimate Solution to a 3&times;3&times;3&times;3</i>, and the modern methods at hypercubing.xyz) solves the piece types in waves, easiest to hardest:<br><b>Wave 1</b> — all 24 two-colour pieces;<br><b>Wave 2</b> — all 32 three-colour pieces;<br><b>Wave 3</b> — all 16 four-colour pieces.<br>Each wave reuses a skill from the 3D cube, one dimension up.',
   },
   {
     ch: 'Chapter 4 · The method',
     title: 'Wave 1 — two-colour pieces',
+    art: TUT_ART.wave1,
     text: '2-colour pieces behave like the <b>edges of a 3D cube</b>. Each cell owns six of them (its face blocks). Pick a colour, <b>centre that cell</b>, and ferry its six pieces home with short twist sequences — like building the cross on a 3D cube, six times… for eight cells. It\'s long, not hard: at this stage you can still twist fairly freely, so this wave teaches you to <i>see</i> in 4D.',
   },
   {
     ch: 'Chapter 4 · The method',
     title: 'Wave 2 — three-colour pieces',
+    art: TUT_ART.wave2,
     text: '3-colour pieces play the role of <b>3D-cube corners</b>. Place them with <b>three-cycles</b>: commutator-built series that swap exactly three pieces and leave <i>everything</i> else untouched. Work cell by cell, and always twist so that solved regions return home by the end of each series. When a sequence goes wrong: <b>Undo</b> back and re-think — never push on blindly.',
   },
   {
     ch: 'Chapter 4 · The method',
     title: 'Wave 3 — the RKT trick',
+    art: TUT_ART.rkt,
     text: 'The famous finish for the last 16 corner pieces: <b>centre the last unsolved cell</b> and treat that centre cube as an <b>ordinary 3D Rubik\'s cube</b>. Twisting the cells <i>around</i> it acts exactly like face turns on it — so every 3D algorithm you know can be executed on the 4D cube. This technique is called <b>RKT</b>, and it turns the scariest phase into familiar territory.',
   },
   {
@@ -748,13 +894,15 @@ const TUT_STEPS = [
     title: 'Solve: one twist',
     detect: 'solved',
     onEnter: () => doScramble(1),
-    text: 'We scrambled the cube with <b>one twist</b>. Hunt down the disturbed cells (4D-rotate or ctrl-click to inspect!), then click the moved block to turn it back. Wrong guess? <b>Undo</b> and try the reverse or a different grip.',
+    art: TUT_ART.dice1,
+    text: 'We scrambled the cube with <b>one twist</b>. Hunt down the disturbed cells (4D-rotate or ctrl-click to inspect!), then select the moved block and turn it back with the panel. Wrong guess? <b>Undo</b> and try the opposite arrow or a different grip.',
   },
   {
     ch: 'Chapter 5 · Practice',
     title: 'Solve: two twists',
     detect: 'solved',
     onEnter: () => doScramble(2),
+    art: TUT_ART.dice2,
     text: 'Now <b>two twists</b>. Reverse them in opposite order: fix the <i>most recent</i> damage first, then the older one. If the picture confuses you, centre a damaged cell and study which stickers are strangers.',
   },
   {
@@ -762,11 +910,13 @@ const TUT_STEPS = [
     title: 'Solve: three twists',
     detect: 'solved',
     onEnter: () => doScramble(3),
-    text: 'Final exam: <b>three twists</b> — a real micro-solve. Use everything: orbit, 4D rotation, centring, all three grips, and Undo. There\'s no rush; careful beats fast.',
+    art: TUT_ART.dice3,
+    text: 'Final exam: <b>three twists</b> — a real micro-solve. Use everything: orbit, 4D rotation, centring, the grips, and Undo. There\'s no rush; careful beats fast.',
   },
   {
     ch: 'Chapter 5 · Practice',
     title: 'You\'re a hypercubist now',
+    art: TUT_ART.done,
     text: 'You know the shape, the pieces, the commutator and the three-wave method. Press <b>Scramble</b> (S) and begin Wave 1. For deeper study: <i>superliminal.com/cube</i> (the Ultimate Solution, sequence by sequence) and <i>hypercubing.xyz</i> (modern methods, RKT, community). Good luck!',
   },
 ];
@@ -795,6 +945,8 @@ function tutorialGoto(n) {
   const st = TUT_STEPS[n];
   el.tutChapter.textContent = st.ch;
   el.tutTitle.textContent = st.title;
+  el.tutArt.innerHTML = st.art || '';
+  el.tutArt.hidden = !st.art;
   el.tutText.innerHTML = st.text;
   el.tutCheck.hidden = true;
   el.tutCheck.textContent = '✓ Nice!';
@@ -828,9 +980,24 @@ function tutorialEvent(type) {
 }
 
 // ----------------------------------------------------------------- selection
-function selectCell(d, sd) {
+// Clicking a sticker SELECTS its cell (highlighted in the scene) and opens the
+// twist panel; twists are then performed with the panel's buttons. If the
+// clicked block is an edge or corner block, the panel additionally offers its
+// diagonal grip (180 deg flip / 120 deg spin).
+function selectCell(d, sd, hit) {
   const key = AXN[d] + (sd > 0 ? '+' : '-');
-  selected = { d, sd, key };
+  let grip = null, piece = null;
+  if (hit) {
+    piece = hit.piece;
+    const inAx = [0,1,2,3].filter(a => a !== d);
+    const g = inAx.map(ax => hit.piece.cur[ax]);   // in-cell position, each in {-1,0,1}
+    const nz = g.filter(x => x !== 0).length;
+    if (nz >= 2) {
+      const n = Math.hypot(g[0], g[1], g[2]);
+      grip = { inAx, u3: [g[0]/n, g[1]/n, g[2]/n], nz };
+    }
+  }
+  selected = { d, sd, key, grip, piece };
   buildTwistRows();
   el.cellSwatch.style.background = COLORS[key];
   el.cellSwatch.style.color = COLORS[key];
@@ -858,11 +1025,27 @@ function buildTwistRows() {
       `<button class="tw" data-i="${i}" data-j="${j}" data-dir="1" title="Twist ${AXN[i]}${AXN[j]} CW (Shift+${idx+1})">${ARROW_CW}</button>`;
     el.twistRows.appendChild(row);
   });
+  // diagonal grip of the clicked block: edge block = 180 flip, corner = 120 spin
+  if (selected.grip) {
+    const g = selected.grip;
+    const row = document.createElement('div');
+    row.className = 'twist-row twist-row-grip';
+    row.innerHTML = g.nz === 2
+      ? `<span class="axis-tag">Edge flip <b>180°</b></span>` +
+        `<button class="tw twa" data-theta="${Math.PI}" title="Flip 180° about this edge's diagonal">${ARROW_CW}</button>`
+      : `<span class="axis-tag">Corner spin <b>120°</b></span>` +
+        `<button class="tw twa" data-theta="${-2 * Math.PI / 3}" title="Spin 120° CCW about this corner's diagonal">${ARROW_CCW}</button>` +
+        `<button class="tw twa" data-theta="${2 * Math.PI / 3}" title="Spin 120° CW about this corner's diagonal">${ARROW_CW}</button>`;
+    el.twistRows.appendChild(row);
+  }
   el.twistRows.querySelectorAll('.tw').forEach(btn => {
     btn.addEventListener('click', () => {
       if (anim) return;
-      const i = +btn.dataset.i, j = +btn.dataset.j, dir = +btn.dataset.dir;
-      startTwist(selected.d, selected.sd, i, j, dir);
+      if (btn.classList.contains('twa')) {
+        startTwistAxis(selected.d, selected.sd, selected.grip.inAx, selected.grip.u3, +btn.dataset.theta);
+      } else {
+        startTwist(selected.d, selected.sd, +btn.dataset.i, +btn.dataset.j, +btn.dataset.dir);
+      }
     });
   });
 }
@@ -885,36 +1068,6 @@ function pickAt(px, py) {
     }
   }
   return null;
-}
-
-// Turn a clicked block into a twist, MagicCube4D-style: the grip depends on WHICH
-// block of the 3x3x3 cell you hit (its in-cell position) ->
-//   face block (1 nonzero in-cell coord) : 90 deg about that face axis
-//   edge block (2 nonzero)               : 180 deg about the edge diagonal
-//   corner block (3 nonzero)             : 120 deg about the body diagonal
-//   centre block (0 nonzero)             : 90 deg about the clicked face axis
-// `sense` is -1 for a plain click (CCW) and +1 for right/Shift (CW); it only
-// matters for the 90 and 120 grips (180 is its own inverse). Also selects the cell.
-function twistFromPick(hit, sense) {
-  const d = hit.d, sd = hit.sd;
-  selectCell(d, sd);
-  if (anim) return;
-  const inAx = [0,1,2,3].filter(a => a !== d);   // the cell's 3 in-cell axes
-  const g = inAx.map(ax => hit.piece.cur[ax]);    // in-cell position, each in {-1,0,1}
-  const nz = [];
-  for (let t = 0; t < 3; t++) if (g[t] !== 0) nz.push(t);
-
-  if (nz.length === 2) {                          // edge -> 180 about the edge diagonal
-    const n = Math.hypot(g[0], g[1], g[2]);
-    startTwistAxis(d, sd, inAx, [g[0]/n, g[1]/n, g[2]/n], Math.PI);
-  } else if (nz.length === 3) {                   // corner -> 120 about the body diagonal
-    const n = Math.hypot(g[0], g[1], g[2]);
-    startTwistAxis(d, sd, inAx, [g[0]/n, g[1]/n, g[2]/n], sense * 2 * Math.PI / 3);
-  } else {                                        // face block (or centre) -> 90 plane twist
-    const k = (nz.length === 1) ? inAx[nz[0]] : hit.faceAxis;
-    const [i, j] = inAx.filter(a => a !== k);
-    startTwist(d, sd, i, j, sense);
-  }
 }
 
 // ----------------------------------------------------------------- input
@@ -1008,15 +1161,16 @@ function onPointerUp(e) {
     if (wasDrag.consumed) {
       // long-press already rotated a cell to the centre; nothing more to do
     } else if (!wasDrag.moved) {
-      // a clean tap. Ctrl-click / middle-click -> rotate the cell to the centre, exactly
-      // like MagicCube4D. Otherwise twist it (left/tap = CCW, right or shift = CW).
-      // Empty space deselects. The dock stays as a fallback / fine plane control.
+      // a clean tap. Ctrl-click / middle-click -> rotate the cell to the centre,
+      // exactly like MagicCube4D. A plain tap SELECTS the cell (highlighted) and
+      // opens the twist panel — twisting happens via the panel's buttons.
+      // Empty space deselects.
       const hit = pickAt(e.clientX, e.clientY);
       if (hit) {
         if (wasDrag.ctrl || wasDrag.button === 1) {
           startCenterCell(hit.d, hit.sd, wasDrag.button === 2);  // right+ctrl reverses
-        } else if (wasDrag.button === 0 || wasDrag.button === 2) {
-          twistFromPick(hit, (wasDrag.button === 2 || wasDrag.shift) ? 1 : -1);
+        } else {
+          selectCell(hit.d, hit.sd, hit);
         }
       } else {
         deselect();
@@ -1078,6 +1232,7 @@ const el = {
   toast: document.getElementById('toast'),
   tutorial: document.getElementById('tutorial'),
   tutChapter: document.getElementById('tut-chapter'),
+  tutArt: document.getElementById('tut-art'),
   tutTitle: document.getElementById('tut-title'),
   tutText: document.getElementById('tut-text'),
   tutCheck: document.getElementById('tut-check'),

@@ -95,7 +95,7 @@
         <div class="dock-hint-icon">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5L19 19M19 5l-2.5 2.5M7.5 16.5L5 19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         </div>
-        <p>Click a sticker to <b>twist</b> its cell · right-click or <b>Shift</b> reverses. <b>Ctrl-click</b> or hold a cell to bring it to the centre. This panel is a fallback for the exact plane.</p>
+        <p>Click a sticker to <b>select</b> its cell — its twist buttons appear here. Edge &amp; corner blocks unlock extra <b>grip</b> turns. <b>Ctrl-click</b> or hold a cell to bring it to the centre.</p>
       </div>
 
       <div class="dock-active">
@@ -124,6 +124,7 @@
       </div>
       <span class="tut-chapter" id="tut-chapter"></span>
       <h3 id="tut-title">Welcome</h3>
+      <div class="tut-art" id="tut-art" hidden></div>
       <p id="tut-text"></p>
       <div class="tut-foot">
         <span class="tut-check" id="tut-check" hidden>✓ Nice!</span>
@@ -161,8 +162,9 @@
         <div class="help-section">
           <span class="help-tag">Twist &amp; solve</span>
           <ul class="help-list">
-            <li><span class="kbd">Tap</span>/<span class="kbd">Click</span> a sticker — twists that cell. Where you hit it (face, edge or corner) decides the turn.</li>
-            <li>Reverse a twist: <span class="kbd">right-click</span> or <span class="kbd">⇧</span>+click <span class="help-or">(desktop)</span>, or use the <b>twist panel</b> that pops up <span class="help-or">(touch)</span>.</li>
+            <li><span class="kbd">Tap</span>/<span class="kbd">Click</span> a sticker — <b>selects</b> its cell (it lights up) and opens the <b>twist panel</b>. Press the ↺ / ↻ buttons to turn it.</li>
+            <li>Select an <b>edge or corner block</b> and the panel adds its diagonal grip: a <b>180°</b> flip or <b>120°</b> spin.</li>
+            <li>Keyboard: <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span> twist the selected cell's planes · hold <span class="kbd">⇧</span> to reverse.</li>
           </ul>
         </div>
 
