@@ -36,8 +36,10 @@ the 8 cells is a distinct shade.
   **always solvable**. Solving uses the *visual* criterion (as in MagicCube4D):
   every cell must be a single colour — hidden orientations of pieces whose
   stickers carry no visible information are not required.
-- The 8 cells use a **pastel palette** with hues spaced ~45° apart, and opposite
-  cells get maximally different hues, so every cell stays recognisable at a glance.
+- The 8 cells use a **colour-blind-friendly palette** (based on Okabe-Ito): the
+  hues avoid the red/green confusion axes and every colour sits on its own
+  lightness level, with opposite cells maximally different, so every cell stays
+  recognisable at a glance — also with a colour-vision deficiency.
 - The in-cell geometry is **uniform**: every cell spreads its 27 blocks
   identically, and all visible differences between cells (the small nested
   centre cube, the tapering tunnels) come purely from the genuine 4D
@@ -100,7 +102,7 @@ into view.
 | File | Purpose |
 | --- | --- |
 | `index.html` | Markup + HUD panels + tutorial card |
-| `styles.css` | Dark, glassy theme around the pastel puzzle |
+| `styles.css` | Dark, glassy theme around the bright puzzle palette |
 | `app.js` | 4D model, twist engine, projection, renderer, input, interactive tutorial |
 | `test/math.test.js` | Mathematical verification of the puzzle engine |
 
@@ -108,7 +110,7 @@ into view.
 
 All visual/geometry constants live at the top of `app.js`:
 
-- `COLORS` — the 8 pastel cell colours
+- `COLORS` — the 8 colour-blind-friendly cell colours
 - `CELL_SPREAD` — how far apart the 27 blocks inside each cell sit (uniform for all cells)
 - `STICKER_HALF` — sticker size (`CELL_SPREAD − 2·STICKER_HALF` = see-through gap)
 - `V4D` / `V3D` — 4D and 3D camera distances (inner-vs-outer cell ratio and tunnel
