@@ -21,18 +21,21 @@
 const X = 0, Y = 1, Z = 2, W = 3;
 const AXN = ['X', 'Y', 'Z', 'W'];
 
-// 8 pastel cell colours, hue-spaced ~45° apart so every cell reads distinctly;
-// opposite cells (X+/X-, ...) get maximally different hues since both are
-// usually visible at the same time.
+// 8 colour-blind-friendly cell colours, derived from the Okabe-Ito palette
+// (the standard palette for colour-vision deficiency): the hues avoid the
+// classic red/green confusion axes AND every colour sits on its own lightness
+// level, so cells stay distinguishable even when hue alone doesn't. Opposite
+// cells (X+/X-, ...) get maximally different colours since both are usually
+// visible at the same time.
 const COLORS = {
-  'X+': '#f8c89a', // pastel apricot
-  'X-': '#a4d8f0', // pastel sky blue
-  'Y+': '#b7e6a8', // pastel green
-  'Y-': '#dcb4ee', // pastel lilac
-  'Z+': '#f3e69a', // pastel lemon
-  'Z-': '#b3b9f2', // pastel periwinkle
-  'W+': '#a3e8cf', // pastel mint
-  'W-': '#f5b3c8', // pastel pink — the nested centre cube, the most prominent cell
+  'X+': '#ff9e2c', // vivid orange
+  'X-': '#5fc8ff', // bright sky blue
+  'Y+': '#00c596', // bright teal-green
+  'Y-': '#c77bff', // bright violet
+  'Z+': '#ffe03d', // bright yellow
+  'Z-': '#4f7dff', // royal blue
+  'W+': '#ff5340', // vermillion red
+  'W-': '#ffffff', // white — the nested centre cube, the most prominent cell
 };
 const CELL_LABEL = {
   'W+': 'Outer',   'W-': 'Inner',
@@ -355,10 +358,10 @@ let frontCell = null; // the currently culled (hidden) cell {fa, fs}
 function render() {
   ctx.clearRect(0, 0, cssW, cssH);
 
-  // soft central halo for depth — a quiet pastel lilac/blue blend
+  // soft central halo for depth — a quiet blue blend matching the new palette
   const halo = ctx.createRadialGradient(cx + panX, cy + panY - 10, 30, cx + panX, cy + panY - 10, Math.min(cssW, cssH) * 0.62);
-  halo.addColorStop(0, 'rgba(150, 140, 205, 0.15)');
-  halo.addColorStop(0.5, 'rgba(105, 110, 175, 0.05)');
+  halo.addColorStop(0, 'rgba(95, 140, 255, 0.14)');
+  halo.addColorStop(0.5, 'rgba(80, 110, 210, 0.05)');
   halo.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, cssW, cssH);
@@ -410,8 +413,8 @@ function render() {
 
         const depth = (a.cz + b.cz + c.cz + d.cz) / 4;
         const diff = Math.max(0, dot3(n, LIGHT));
-        // capped at 1.0: the pastel palette is bright, so anything above would
-        // clip channels at 255 and wash the hues out; the selected cell gets a
+        // capped at 1.0: the palette is bright, so anything above would clip
+        // channels at 255 and wash the hues out; the selected cell gets a
         // visible lift so "what will turn" is unmistakable
         const shade = (0.58 + 0.42 * diff) * (inSlab ? 1.12 : 1);
 
@@ -689,35 +692,35 @@ function taTile(x, y, cw, attrs) {
   return `<path d="M${x} ${y}l${g} ${h}l-${g} ${h}l-${g} -${h}z" ${attrs}/>`;
 }
 // 3x3 grid of tiles on a cube's top face, apex at (x, y), cell half-width cw.
-// fills: a single colour or an array of 9; hot cells pulse pink.
+// fills: a single colour or an array of 9; hot cells pulse white.
 function taIsoTop(x, y, cw, fills, hot = []) {
   let out = '';
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
     const tx = x + (c - r) * cw, ty = y + (c + r) * cw * 0.5;
     const isHot = hot.some(([hr, hc]) => hr === r && hc === c);
-    const fill = isHot ? '#f5b3c8' : (Array.isArray(fills) ? fills[r * 3 + c] : fills);
+    const fill = isHot ? '#ffffff' : (Array.isArray(fills) ? fills[r * 3 + c] : fills);
     out += taTile(tx, ty, cw, `fill="${fill}"${isHot ? ' class="ta-pulse"' : ''}`);
   }
   return out;
 }
-// isometric die: lemon cube with n pips on the top face
+// isometric die: yellow cube with n pips on the top face
 function taDice(n) {
   const pips = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]] }[n]
     .map(([a, b]) => `<ellipse cx="${140 + a * 10}" cy="${28 + b * 5}" rx="4.5" ry="2.6" fill="#3a3208"/>`).join('');
-  return `<svg viewBox="0 0 280 96">${taCube(140, 16, 24, '#f3e69a', { d: 20, cls: 'ta-pulse' })}${pips}</svg>`;
+  return `<svg viewBox="0 0 280 96">${taCube(140, 16, 24, '#ffe03d', { d: 20, cls: 'ta-pulse' })}${pips}</svg>`;
 }
 const TUT_ART = {
   tesseract: `<svg viewBox="0 0 280 96">
-    ${taFrame(140, 8, 38, 32, '#b3b9f2')}
-    ${taCube(140, 33, 13, '#f5b3c8', { d: 11, cls: 'ta-pulse' })}
+    ${taFrame(140, 8, 38, 32, '#4f7dff')}
+    ${taCube(140, 33, 13, '#ffffff', { d: 11, cls: 'ta-pulse' })}
     <path d="M140 8v25M178 27l-25 12.5M102 27l25 12.5M140 78V57" fill="none" stroke="#65728c" stroke-width="1.2"/>
   </svg>`,
   cells: `<svg viewBox="0 0 280 96">
-    <path d="M140 8l38 19-38 19-38-19z" fill="#b7e6a8" opacity=".25"/>
-    <path d="M102 27l38 19v32l-38-19z" fill="#f3e69a" opacity=".2"/>
-    <path d="M178 27l-38 19v32l38-19z" fill="#f8c89a" opacity=".22"/>
-    ${taFrame(140, 8, 38, 32, '#b3b9f2', '5 5')}
-    ${taCube(140, 33, 13, '#f5b3c8', { d: 11 })}
+    <path d="M140 8l38 19-38 19-38-19z" fill="#00c596" opacity=".25"/>
+    <path d="M102 27l38 19v32l-38-19z" fill="#ffe03d" opacity=".2"/>
+    <path d="M178 27l-38 19v32l38-19z" fill="#ff9e2c" opacity=".22"/>
+    ${taFrame(140, 8, 38, 32, '#4f7dff', '5 5')}
+    ${taCube(140, 33, 13, '#ffffff', { d: 11 })}
     <text x="10" y="22" fill="#9fb0cc" font-size="10">hidden 8th cell</text>
     <path d="M76 25l25 4" fill="none" stroke="#65728c" stroke-width="1"/>
     <text x="206" y="62" fill="#9fb0cc" font-size="10">centre cell</text>
@@ -726,32 +729,32 @@ const TUT_ART = {
     <path d="M203 16l-40 8" fill="none" stroke="#65728c" stroke-width="1"/>
   </svg>`,
   orbit: `<svg viewBox="0 0 280 96">
-    ${taCube(140, 24, 20, '#a4d8f0')}
+    ${taCube(140, 24, 20, '#5fc8ff')}
     <ellipse cx="140" cy="50" rx="58" ry="22" fill="none" stroke="#9fb0cc" stroke-width="1.6" class="ta-dash"/>
     <path d="M196 60l9-2-5 8z" fill="#9fb0cc"/>
   </svg>`,
   rot4d: `<svg viewBox="0 0 280 96">
-    ${taFrame(140, 10, 34, 28, '#b3b9f2')}
-    ${taCube(140, 32, 12, '#f5b3c8', { d: 10 })}
-    <path d="M90 44c-16-26 18-42 50-33" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
-    <path d="M136 6l9 2-6 7z" fill="#a3e8cf"/>
-    <path d="M190 44c16 26-18 42-50 33" fill="none" stroke="#f3e69a" stroke-width="2" class="ta-dash"/>
-    <path d="M144 82l-9-2 6-7z" fill="#f3e69a"/>
+    ${taFrame(140, 10, 34, 28, '#4f7dff')}
+    ${taCube(140, 32, 12, '#ffffff', { d: 10 })}
+    <path d="M90 44c-16-26 18-42 50-33" fill="none" stroke="#ff5340" stroke-width="2" class="ta-dash"/>
+    <path d="M136 6l9 2-6 7z" fill="#ff5340"/>
+    <path d="M190 44c16 26-18 42-50 33" fill="none" stroke="#ffe03d" stroke-width="2" class="ta-dash"/>
+    <path d="M144 82l-9-2 6-7z" fill="#ffe03d"/>
   </svg>`,
   center: `<svg viewBox="0 0 280 96">
     <circle cx="106" cy="51" r="18" fill="none" stroke="#65728c" stroke-width="1.4" stroke-dasharray="4 5"/>
     <path d="M106 27v-8M106 75v8M82 51h-8M130 51h8" fill="none" stroke="#65728c" stroke-width="1.4"/>
-    ${taCube(172, 36, 15, '#b7e6a8', { d: 13, cls: 'ta-slide' })}
+    ${taCube(172, 36, 15, '#00c596', { d: 13, cls: 'ta-slide' })}
   </svg>`,
   pieces: `<svg viewBox="0 0 280 96">
-    ${taCube(40, 22, 15, '#f5b3c8', { d: 13 })}<text x="40" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">1c ×8</text>
-    ${taCube(106, 22, 15, '#b7e6a8', { d: 13, left: taShade('#a4d8f0', 0.7), right: taShade('#a4d8f0', 0.88) })}<text x="106" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">2c ×24</text>
-    ${taCube(172, 22, 15, '#f3e69a', { d: 13, left: taShade('#dcb4ee', 0.7), right: taShade('#a3e8cf', 0.88) })}<text x="172" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">3c ×32</text>
-    ${taCube(238, 22, 15, '#f8c89a', { d: 13, left: taShade('#b7e6a8', 0.7), right: taShade('#f5b3c8', 0.88) })}<path d="M238 22l15 7.5-15 7.5z" fill="#b3b9f2"/><text x="238" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">4c ×16</text>
+    ${taCube(40, 22, 15, '#ffffff', { d: 13 })}<text x="40" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">1c ×8</text>
+    ${taCube(106, 22, 15, '#00c596', { d: 13, left: taShade('#5fc8ff', 0.7), right: taShade('#5fc8ff', 0.88) })}<text x="106" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">2c ×24</text>
+    ${taCube(172, 22, 15, '#ffe03d', { d: 13, left: taShade('#c77bff', 0.7), right: taShade('#ff5340', 0.88) })}<text x="172" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">3c ×32</text>
+    ${taCube(238, 22, 15, '#ff9e2c', { d: 13, left: taShade('#00c596', 0.7), right: taShade('#ffffff', 0.88) })}<path d="M238 22l15 7.5-15 7.5z" fill="#4f7dff"/><text x="238" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">4c ×16</text>
   </svg>`,
   twist: `<svg viewBox="0 0 280 96">
     ${taCube(140, 14, 27, '#26314e', { d: 22 })}
-    ${taIsoTop(140, 14, 9, ['#a4d8f0', '#f3e69a', '#b7e6a8', '#f5b3c8', '#dcb4ee', '#f8c89a', '#a3e8cf', '#b3b9f2', '#a4d8f0'])}
+    ${taIsoTop(140, 14, 9, ['#5fc8ff', '#ffe03d', '#00c596', '#ffffff', '#c77bff', '#ff9e2c', '#ff5340', '#4f7dff', '#5fc8ff'])}
     <ellipse cx="140" cy="34" rx="62" ry="20" fill="none" stroke="#9fb0cc" stroke-width="1.8" class="ta-dash"/>
     <path d="M200 44l9-3-5 8z" fill="#9fb0cc"/>
   </svg>`,
@@ -761,49 +764,49 @@ const TUT_ART = {
     ${taCube(224, 14, 21, '#26314e', { d: 16 })}${taIsoTop(224, 14, 7, '#2f3a58', [[2, 2]])}<text x="224" y="78" fill="#9fb0cc" font-size="10" text-anchor="middle">corner 120°</text>
   </svg>`,
   undo: `<svg viewBox="0 0 280 96">
-    <path d="M180 70a36 36 0 1 0-70-10" fill="none" stroke="#a3e8cf" stroke-width="3" stroke-linecap="round" class="ta-dash"/>
-    <path d="M101 50l9 17 13-13z" fill="#a3e8cf"/>
+    <path d="M180 70a36 36 0 1 0-70-10" fill="none" stroke="#ff5340" stroke-width="3" stroke-linecap="round" class="ta-dash"/>
+    <path d="M101 50l9 17 13-13z" fill="#ff5340"/>
   </svg>`,
   comm: `<svg viewBox="0 0 280 96">
-    <g class="ta-pop1"><rect x="37" y="36" width="40" height="34" rx="9" fill="${taShade('#f5b3c8', 0.55)}"/><rect x="34" y="30" width="40" height="34" rx="9" fill="#f5b3c8"/><text x="54" y="52" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A</text></g>
-    <g class="ta-pop2"><rect x="97" y="36" width="40" height="34" rx="9" fill="${taShade('#a4d8f0', 0.55)}"/><rect x="94" y="30" width="40" height="34" rx="9" fill="#a4d8f0"/><text x="114" y="52" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B</text></g>
-    <g class="ta-pop3"><rect x="157" y="36" width="40" height="34" rx="9" fill="${taShade('#f5b3c8', 0.55)}"/><rect x="154" y="30" width="40" height="34" rx="9" fill="#f5b3c8"/><text x="174" y="52" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A′</text></g>
-    <g class="ta-pop4"><rect x="217" y="36" width="40" height="34" rx="9" fill="${taShade('#a4d8f0', 0.55)}"/><rect x="214" y="30" width="40" height="34" rx="9" fill="#a4d8f0"/><text x="234" y="52" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B′</text></g>
+    <g class="ta-pop1"><rect x="37" y="36" width="40" height="34" rx="9" fill="${taShade('#ffffff', 0.55)}"/><rect x="34" y="30" width="40" height="34" rx="9" fill="#ffffff"/><text x="54" y="52" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A</text></g>
+    <g class="ta-pop2"><rect x="97" y="36" width="40" height="34" rx="9" fill="${taShade('#5fc8ff', 0.55)}"/><rect x="94" y="30" width="40" height="34" rx="9" fill="#5fc8ff"/><text x="114" y="52" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B</text></g>
+    <g class="ta-pop3"><rect x="157" y="36" width="40" height="34" rx="9" fill="${taShade('#ffffff', 0.55)}"/><rect x="154" y="30" width="40" height="34" rx="9" fill="#ffffff"/><text x="174" y="52" fill="#3a2030" font-size="15" font-weight="700" text-anchor="middle">A′</text></g>
+    <g class="ta-pop4"><rect x="217" y="36" width="40" height="34" rx="9" fill="${taShade('#5fc8ff', 0.55)}"/><rect x="214" y="30" width="40" height="34" rx="9" fill="#5fc8ff"/><text x="234" y="52" fill="#1d3242" font-size="15" font-weight="700" text-anchor="middle">B′</text></g>
   </svg>`,
   waves: `<svg viewBox="0 0 280 96">
-    <g class="ta-pop1">${taCube(60, 20, 14, '#b7e6a8', { d: 12, left: taShade('#a4d8f0', 0.7), right: taShade('#a4d8f0', 0.88) })}<text x="60" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">2c · 24</text></g>
-    <g class="ta-pop2">${taCube(140, 20, 14, '#f3e69a', { d: 12, left: taShade('#dcb4ee', 0.7), right: taShade('#a3e8cf', 0.88) })}<text x="140" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">3c · 32</text></g>
-    <g class="ta-pop3">${taCube(220, 20, 14, '#f8c89a', { d: 12, left: taShade('#b7e6a8', 0.7), right: taShade('#f5b3c8', 0.88) })}<path d="M220 20l14 7-14 7z" fill="#b3b9f2"/><text x="220" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">4c · 16</text></g>
+    <g class="ta-pop1">${taCube(60, 20, 14, '#00c596', { d: 12, left: taShade('#5fc8ff', 0.7), right: taShade('#5fc8ff', 0.88) })}<text x="60" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">2c · 24</text></g>
+    <g class="ta-pop2">${taCube(140, 20, 14, '#ffe03d', { d: 12, left: taShade('#c77bff', 0.7), right: taShade('#ff5340', 0.88) })}<text x="140" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">3c · 32</text></g>
+    <g class="ta-pop3">${taCube(220, 20, 14, '#ff9e2c', { d: 12, left: taShade('#00c596', 0.7), right: taShade('#ffffff', 0.88) })}<path d="M220 20l14 7-14 7z" fill="#4f7dff"/><text x="220" y="74" fill="#9fb0cc" font-size="10" text-anchor="middle">4c · 16</text></g>
     <path d="M82 40h32M164 40h32" fill="none" stroke="#9fb0cc" stroke-width="1.6"/>
     <path d="M112 35l9 5-9 5zM194 35l9 5-9 5z" fill="#9fb0cc"/>
   </svg>`,
   wave1: `<svg viewBox="0 0 280 96">
     ${taTile(133, 30.5, 13, 'fill="none" stroke="#65728c" stroke-dasharray="3 3"')}
-    ${taTile(107, 30.5, 13, 'fill="#b7e6a8"')}
-    ${taTile(120, 37, 13, 'fill="#b7e6a8"')}
-    ${taTile(133, 43.5, 13, 'fill="#b7e6a8"')}
-    ${taTile(107, 43.5, 13, 'fill="#b7e6a8"')}
-    ${taCube(222, 25, 11, '#b7e6a8', { d: 9, left: taShade('#a4d8f0', 0.7), right: taShade('#a4d8f0', 0.88), cls: 'ta-slide2' })}
+    ${taTile(107, 30.5, 13, 'fill="#00c596"')}
+    ${taTile(120, 37, 13, 'fill="#00c596"')}
+    ${taTile(133, 43.5, 13, 'fill="#00c596"')}
+    ${taTile(107, 43.5, 13, 'fill="#00c596"')}
+    ${taCube(222, 25, 11, '#00c596', { d: 9, left: taShade('#5fc8ff', 0.7), right: taShade('#5fc8ff', 0.88), cls: 'ta-slide2' })}
   </svg>`,
   wave2: `<svg viewBox="0 0 280 96">
-    ${taCube(140, 4, 13, '#f3e69a', { d: 11 })}
-    ${taCube(103, 50, 13, '#dcb4ee', { d: 11 })}
-    ${taCube(177, 50, 13, '#a3e8cf', { d: 11 })}
+    ${taCube(140, 4, 13, '#ffe03d', { d: 11 })}
+    ${taCube(103, 50, 13, '#c77bff', { d: 11 })}
+    ${taCube(177, 50, 13, '#ff5340', { d: 11 })}
     <path d="M118 56l14-24M162 32l13 24M164 78h-44" fill="none" stroke="#9fb0cc" stroke-width="1.8" class="ta-dash"/>
     <path d="M130 26l4-8 4 8zM178 50l4 9-9-1zM126 73l-8 5 8 5z" fill="#9fb0cc"/>
   </svg>`,
   rkt: `<svg viewBox="0 0 280 96">
-    ${taFrame(140, 8, 38, 30, '#b3b9f2')}
-    ${taCube(140, 32, 14, '#f5b3c8', { d: 12, top: taShade('#f5b3c8', 0.68) })}
-    ${taIsoTop(140, 32, 4.7, '#f5b3c8')}
-    <path d="M82 46h24M198 46h-24M140 94V78" fill="none" stroke="#a3e8cf" stroke-width="2" class="ta-dash"/>
-    <path d="M104 41l9 5-9 5zM176 41l-9 5 9 5zM135 81l5-9 5 9z" fill="#a3e8cf"/>
+    ${taFrame(140, 8, 38, 30, '#4f7dff')}
+    ${taCube(140, 32, 14, '#ffffff', { d: 12, top: taShade('#ffffff', 0.68) })}
+    ${taIsoTop(140, 32, 4.7, '#ffffff')}
+    <path d="M82 46h24M198 46h-24M140 94V78" fill="none" stroke="#ff5340" stroke-width="2" class="ta-dash"/>
+    <path d="M104 41l9 5-9 5zM176 41l-9 5 9 5zM135 81l5-9 5 9z" fill="#ff5340"/>
     <text x="196" y="20" fill="#9fb0cc" font-size="10">= a 3D cube!</text>
     <path d="M194 18l-26 14" fill="none" stroke="#65728c" stroke-width="1"/>
   </svg>`,
   dice1: taDice(1), dice2: taDice(2), dice3: taDice(3),
   done: `<svg viewBox="0 0 280 96">
-    <path d="M140 12l10 21 23 3-17 16 4 23-20-11-20 11 4-23-17-16 23-3z" fill="#f3e69a" class="ta-pulse"/>
+    <path d="M140 12l10 21 23 3-17 16 4 23-20-11-20 11 4-23-17-16 23-3z" fill="#ffe03d" class="ta-pulse"/>
   </svg>`,
 };
 
