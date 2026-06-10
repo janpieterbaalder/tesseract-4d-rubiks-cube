@@ -38,6 +38,29 @@ the 8 cells is a distinct shade.
   stickers carry no visible information are not required.
 - The 8 cells use a **pastel palette** with hues spaced ~45° apart, and opposite
   cells get maximally different hues, so every cell stays recognisable at a glance.
+- The in-cell geometry is **uniform**: every cell spreads its 27 blocks
+  identically, and all visible differences between cells (the small nested
+  centre cube, the tapering tunnels) come purely from the genuine 4D
+  perspective projection. Rotate any cell into the centre and it looks exactly
+  like the cell that was there before — no per-cell distortion.
+
+## Verified mathematics
+
+`test/math.test.js` loads the real engine and proves the puzzle model is sound
+(run with `npm i jsdom && node test/math.test.js`):
+
+- piece census matches the true 3⁴ structure: 8 one-colour, 24 two-colour,
+  32 three-colour and 16 four-colour pieces (80 movable, 216 stickers);
+- every twist matrix is a signed permutation with determinant +1 — a genuine
+  orientation-preserving rotation, never a reflection;
+- generator orders are exact (90° twist⁴ = 180° grip² = 120° grip³ = identity);
+- the three 90° plane twists of a cell generate exactly its 24-element rotation
+  group, and every edge/corner grip is a member — all grips are legal moves;
+- twists permute the 80 pieces bijectively, preserve piece type, keep the
+  twisted slab in its cell and never touch outside pieces;
+- position and orientation stay consistent (`cur == rot · solved`) through long
+  random mixed-twist sequences, and a 300-move scramble replayed in reverse
+  returns every piece exactly home.
 
 The geometry pipeline is: sticker cube (in 4D) → rotate in 4D (view + twist
 animation) → perspective-project **4D → 3D** → orbit → perspective-project
@@ -45,9 +68,15 @@ animation) → perspective-project **4D → 3D** → orbit → perspective-proje
 
 ## How to play
 
-New here? Hit the **Tutorial** button (or press `T`) for an interactive,
-step-by-step walkthrough that teaches every control and ends with guided
-1-move and 2-move practice solves on the real puzzle.
+New here? Hit the **Tutorial** button (or press `T`) for an interactive
+**20-step course in 5 chapters**: the shape of the hypercube and how to read
+the projection, the four piece types, the commutator (the core skill of every
+twisty puzzle), and a complete three-wave solving method — two-colour pieces
+first, then three-colour, then four-colour with the RKT technique — based on
+Roice Nelson's [Ultimate Solution to a 3×3×3×3](https://superliminal.com/cube/solution/solution.htm)
+and the modern methods at [hypercubing.xyz](https://hypercubing.xyz/). Action
+steps wait until you actually perform them, and the course ends with guided
+1-, 2- and 3-twist practice solves on the real puzzle.
 
 | Action | Control |
 | --- | --- |
@@ -70,13 +99,22 @@ cell to centre it) to bring a buried cell into view before working on it.
 | `index.html` | Markup + HUD panels + tutorial card |
 | `styles.css` | Dark, glassy theme around the pastel puzzle |
 | `app.js` | 4D model, twist engine, projection, renderer, input, interactive tutorial |
+| `test/math.test.js` | Mathematical verification of the puzzle engine |
 
 ## Tweaking
 
 All visual/geometry constants live at the top of `app.js`:
 
 - `COLORS` — the 8 pastel cell colours
-- `FACE_SHRINK` — how far apart the cells sit (lower = more separation / easier to see inside)
-- `CENTER_SHRINK` — size of the nested central cube (larger = bigger centre)
-- `STICKER_HALF` — sticker size
-- `V4D` / `V3D` — 4D and 3D camera distances (inner-vs-outer size ratio, perspective strength)
+- `CELL_SPREAD` — how far apart the 27 blocks inside each cell sit (uniform for all cells)
+- `STICKER_HALF` — sticker size (`CELL_SPREAD − 2·STICKER_HALF` = see-through gap)
+- `V4D` / `V3D` — 4D and 3D camera distances (inner-vs-outer cell ratio and tunnel
+  taper come entirely from the 4D perspective, so `V4D` is the one knob for the
+  nested look)
+
+## Sources for the solving method
+
+- The Ultimate Solution to a 3×3×3×3 (Roice Nelson): https://superliminal.com/cube/solution/solution.htm
+- MagicCube4D: https://superliminal.com/cube/
+- Hypercubing wiki (piece counts, methods, RKT): https://hypercubing.xyz/
+- RKT technique: https://hypercubing.xyz/techniques/rkt/
