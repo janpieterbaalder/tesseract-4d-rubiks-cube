@@ -65,17 +65,15 @@
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Reset</span>
       </button>
+      <button class="btn" id="btn-view-reset" title="Reset view (V)">
+        <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <span>View</span>
+      </button>
       <button class="btn" id="btn-tutorial" title="Interactive tutorial (T)">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5v4.5c0 1.5 3 3 7 3s7-1.5 7-3v-4.5M22 9v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Tutorial</span>
       </button>
     </div>
-
-    <!-- Reset view (camera) -->
-    <button class="hud btn" id="btn-view-reset" title="Reset view (V)">
-      <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-      <span>Reset view</span>
-    </button>
 
     <!-- Twist dock (appears when a cell is selected) -->
     <section class="hud hud-dock" id="dock" data-empty="true">
@@ -87,10 +85,6 @@
       </div>
 
       <div class="dock-active">
-        <div class="dock-head">
-          <span class="cell-chip"><i id="cell-swatch"></i><span id="cell-name">Cell</span></span>
-          <button class="dock-close" id="dock-close" title="Deselect">✕</button>
-        </div>
         <div class="twist-rows" id="twist-rows"><!-- generated --></div>
       </div>
     </section>
@@ -169,7 +163,7 @@
             <li><span class="kbd">Drag</span> orbit in 3D · <span class="kbd">scroll</span>/<span class="kbd">pinch</span> zoom — zooming follows your <b>cursor</b>, not the centre.</li>
             <li><b>Pan</b> freely: <span class="kbd">right-drag</span> or <span class="kbd">Alt</span>+drag <span class="help-or">(desktop)</span>, <span class="kbd">two-finger drag</span> <span class="help-or">(touch)</span>.</li>
             <li>Rotate through the 4th dimension: <span class="kbd">⇧</span>+drag.</li>
-            <li>Lost? <b>Reset view</b> (top right) or <span class="kbd">V</span> puts everything back.</li>
+            <li>Lost? <b>View</b> in the bottom bar or <span class="kbd">V</span> puts everything back.</li>
           </ul>
         </div>
 
