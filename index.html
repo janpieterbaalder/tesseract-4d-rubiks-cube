@@ -71,23 +71,11 @@
       </button>
     </div>
 
-    <!-- 4D rotation controls -->
-    <aside class="hud hud-rot">
-      <div class="panel-title">
-        <span>4D rotation</span>
-        <button class="mini-help" id="btn-help" title="Help">?</button>
-      </div>
-      <p class="panel-sub"><b>Ctrl-click</b> or hold a cell to spin it to the centre. <b>⇧+drag</b> rotates 4D freely — or step with the buttons.</p>
-      <div class="rot-grid">
-        <button class="rbtn" data-rot="xw" data-dir="1">XW<span>＋</span></button>
-        <button class="rbtn" data-rot="xw" data-dir="-1">XW<span>－</span></button>
-        <button class="rbtn" data-rot="yw" data-dir="1">YW<span>＋</span></button>
-        <button class="rbtn" data-rot="yw" data-dir="-1">YW<span>－</span></button>
-        <button class="rbtn" data-rot="zw" data-dir="1">ZW<span>＋</span></button>
-        <button class="rbtn" data-rot="zw" data-dir="-1">ZW<span>－</span></button>
-      </div>
-      <button class="btn btn-ghost btn-wide" id="btn-view-reset">Reset view</button>
-    </aside>
+    <!-- Reset view (camera) -->
+    <button class="hud btn" id="btn-view-reset" title="Reset view (V)">
+      <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span>Reset view</span>
+    </button>
 
     <!-- Twist dock (appears when a cell is selected) -->
     <section class="hud hud-dock" id="dock" data-empty="true">
@@ -178,8 +166,10 @@
         <div class="help-section">
           <span class="help-tag">Look around</span>
           <ul class="help-list">
-            <li><span class="kbd">Drag</span> orbit in 3D · <span class="kbd">scroll</span>/<span class="kbd">pinch</span> zoom</li>
-            <li>Rotate through the 4th dimension: <span class="kbd">⇧</span>+drag <span class="help-or">(desktop)</span> or the <span class="kbd">XW/YW/ZW</span> buttons <span class="help-or">(everywhere)</span>.</li>
+            <li><span class="kbd">Drag</span> orbit in 3D · <span class="kbd">scroll</span>/<span class="kbd">pinch</span> zoom — zooming follows your <b>cursor</b>, not the centre.</li>
+            <li><b>Pan</b> freely: <span class="kbd">right-drag</span> or <span class="kbd">Alt</span>+drag <span class="help-or">(desktop)</span>, <span class="kbd">two-finger drag</span> <span class="help-or">(touch)</span>.</li>
+            <li>Rotate through the 4th dimension: <span class="kbd">⇧</span>+drag.</li>
+            <li>Lost? <b>Reset view</b> (top right) or <span class="kbd">V</span> puts everything back.</li>
           </ul>
         </div>
 
