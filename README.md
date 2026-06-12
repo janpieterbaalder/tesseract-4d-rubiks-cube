@@ -91,7 +91,8 @@ puzzle — she **teaches** it:
   history, camera, clock) is parked on entry and restored the moment you
   leave.
 
-Finishing a lesson unlocks the next; progress is saved in the browser. All
+All lessons are open from the start — browse the map and dip in anywhere;
+finished lessons are ticked off and progress is saved in the browser. All
 lesson texts adapt to touch devices (no Ctrl/Shift talk on a phone).
 
 | Chapter | What you learn |
@@ -139,7 +140,7 @@ into view.
 | `styles.css` | Dark, glassy theme around the bright puzzle palette |
 | `app.js` | 4D model, twist engine, projection, renderer, input, Hypercube Academy tutor (Professor Tess) |
 | `test/math.test.js` | Mathematical verification of the puzzle engine |
-| `test/levels.test.js` | Behaviour tests for the Academy tutor: curriculum shape, step flow, the practice-copy snapshot, a full playthrough of every lesson, guided-move matching, wave goals, unlocking |
+| `test/levels.test.js` | Behaviour tests for the Academy tutor: curriculum shape, step flow, the practice-copy snapshot, a full playthrough of every lesson, guided-move matching, wave goals |
 
 ## Tweaking
 

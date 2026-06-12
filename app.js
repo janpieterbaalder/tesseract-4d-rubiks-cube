@@ -1368,7 +1368,9 @@ const tut = {
   done: loadProgress(),
 };
 function saveProgress() { try { localStorage.setItem(PROG_KEY, JSON.stringify([...tut.done])); } catch (_) {} }
-function lessonUnlocked(i) { return i === 0 || tut.done.has(LESSONS[i - 1].id); }
+// every lesson is open from the start: browse and dip in anywhere — finished
+// lessons are still ticked off, and Continue points at the first unfinished one
+function lessonUnlocked() { return true; }
 function firstOpenLesson() {
   const i = LESSONS.findIndex(lv => !tut.done.has(lv.id));
   return i === -1 ? LESSONS.length - 1 : i;

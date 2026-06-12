@@ -20,7 +20,8 @@
 //   6. Goal predicates: waveSolved() grades exactly the right families,
 //      cellAtCenter() identifies the centred cell, the lab commutator
 //      displaces the minimal 13 pieces and INV_COMM heals it.
-//   7. Locking: lesson i+1 unlocks exactly when lesson i is done.
+//   7. Access: every lesson is open from the start; Continue still points at
+//      the first unfinished one.
 // ============================================================================
 'use strict';
 
@@ -251,11 +252,10 @@ ok(A.displacedPieces().length > 0, 'edge flip displaces pieces');
 T.commitTwistAxis(0, 1, inAx, [Math.SQRT1_2, Math.SQRT1_2, 0], Math.PI);
 ok(A.displacedPieces().length === 0 && T.isSolved(), 'second flip restores every piece home');
 
-// ---------- 7: locking ----------------------------------------------------------------
+// ---------- 7: lesson access -----------------------------------------------------------
 tut.done.clear();
-ok(A.lessonUnlocked(0) && !A.lessonUnlocked(1), 'only lesson 1 unlocked at a fresh start');
+ok(LESSONS.every((_, i) => A.lessonUnlocked(i)), 'every lesson is open from a fresh start');
 tut.done.add(LESSONS[0].id);
-ok(A.lessonUnlocked(1) && !A.lessonUnlocked(2), 'finishing a lesson unlocks exactly the next');
 ok(A.firstOpenLesson() === 1, 'continue points at the first unfinished lesson');
 
 // the avatar renders every mood without throwing
