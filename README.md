@@ -68,17 +68,35 @@ The geometry pipeline is: sticker cube (in 4D) → rotate in 4D (view + twist
 animation) → perspective-project **4D → 3D** → orbit → perspective-project
 **3D → 2D** → depth-sorted, light-shaded quads.
 
-## How to play
+## Learn to solve — the Hypercube Academy
 
-New here? Hit the **Tutorial** button (or press `T`) for an interactive
-**20-step course in 5 chapters**: the shape of the hypercube and how to read
-the projection, the four piece types, the commutator (the core skill of every
-twisty puzzle), and a complete three-wave solving method — two-colour pieces
-first, then three-colour, then four-colour with the RKT technique — based on
-Roice Nelson's [Ultimate Solution to a 3×3×3×3](https://superliminal.com/cube/solution/solution.htm)
-and the modern methods at [hypercubing.xyz](https://hypercubing.xyz/). Action
-steps wait until you actually perform them, and the course ends with guided
-1-, 2- and 3-twist practice solves on the real puzzle.
+New here? Hit the **Learn** button (or press `L`) to open the **Hypercube
+Academy**: **25 standalone, hands-on levels in 8 chapters** that run inside
+the live 3D scene and take you from zero to a complete solving method.
+Every level sets up the real puzzle (resets, engineered states, scrambles or
+animated demos), states a few objectives, and detects completion through the
+actual engine — twists, grips, undos, piece selections, 4D view moves and
+solved-state checks. Finishing a level unlocks the next; progress is saved in
+the browser.
+
+| Chapter | What you learn |
+| --- | --- |
+| 1 · The Shape | Read the projection, orbit/zoom, rotate through 4D, find the hidden cell |
+| 2 · The Pieces | The four piece families, your first twist, the 180°/120° grips, twist order |
+| 3 · Detective School | Solve 1-, 2- and 3-twist scrambles, plus a grip-scramble, by pure reading |
+| 4 · The Commutator Lab | A B A′ B′ performed and verified move-by-move, damage spotting (the Lab commutator displaces just 13 of 80 pieces — the provable minimum), inverting a demoed commutator, conjugates |
+| 5 · Wave 1 | All 24 two-colour pieces home — graded per wave, the rest may stay wild |
+| 6 · Wave 2 | All 32 three-colour pieces via commutator three-cycles |
+| 7 · Wave 3 + RKT | The famous RKT endgame: the centre cell *is* a 3D cube, plus full graded solves |
+| 8 · Graduation | A five-twist final exam, fully graded |
+
+The method follows Roice Nelson's
+[Ultimate Solution to a 3×3×3×3](https://superliminal.com/cube/solution/solution.htm)
+and the modern methods at [hypercubing.xyz](https://hypercubing.xyz/):
+two-colour pieces first, then three-colour, then four-colour with the RKT
+technique.
+
+## How to play
 
 | Action | Control |
 | --- | --- |
@@ -91,7 +109,8 @@ steps wait until you actually perform them, and the course ends with guided
 | Diagonal grips | Select an **edge or corner block** — the panel adds its 180° flip / 120° spin |
 | Bring a cell to the centre | `Ctrl`+click, or press and hold (touch) — a pure view change |
 | Rotate through the 4th dimension | `Shift`+drag |
-| Scramble · Undo · Reset · Tutorial | `S` · `U` · `R` · `T` |
+| Scramble · Undo · Reset | `S` · `U` · `R` |
+| Open the Academy (levels) | **Learn** button, or `L` / `T` — during a level, `R` restarts it |
 
 **Tip:** because cells hide behind one another, ctrl-click (or hold) a cell to
 centre it before working on it — centring also cycles the hidden cell back
@@ -101,10 +120,11 @@ into view.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | Markup + HUD panels + tutorial card |
+| `index.html` | Markup + HUD panels + Academy level panel & level map |
 | `styles.css` | Dark, glassy theme around the bright puzzle palette |
-| `app.js` | 4D model, twist engine, projection, renderer, input, interactive tutorial |
+| `app.js` | 4D model, twist engine, projection, renderer, input, Hypercube Academy level system |
 | `test/math.test.js` | Mathematical verification of the puzzle engine |
+| `test/levels.test.js` | Behaviour tests for the Academy: curriculum shape, event flow, unlocking, commutator detection, wave goals |
 
 ## Tweaking
 

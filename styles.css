@@ -366,9 +366,9 @@ body {
 
 .help-card .btn-wide + .btn-wide { margin-top: 9px; }
 
-/* ----------------------------------------------------------- tutorial */
-.hud-tutorial {
-  right: 22px; bottom: 26px; width: 344px;
+/* ----------------------------------------------------------- academy: level panel */
+.hud-course {
+  right: 22px; bottom: 26px; width: 354px;
   padding: 16px 18px 15px;
   border-radius: var(--radius);
   background: var(--glass);
@@ -376,20 +376,19 @@ body {
   box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.05);
   animation: pop .35s cubic-bezier(.2,.9,.25,1);
 }
-.hud-tutorial[hidden] { display: none; }
-.tut-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.tut-progress { display: flex; gap: 4px; flex-wrap: wrap; }
-.tut-progress i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); transition: background .25s; }
-.tut-progress i.past { background: var(--accent); opacity: 0.5; }
-.tut-progress i.now { background: var(--accent-2); box-shadow: 0 0 8px var(--glow); }
-.tut-chapter {
-  display: block; margin-bottom: 5px;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--accent-2);
+.hud-course[hidden] { display: none; }
+.hud-course.complete {
+  border-color: rgba(0, 197, 150, 0.55);
+  box-shadow: 0 0 0 1px rgba(0, 197, 150, 0.25), var(--shadow);
 }
-.tut-art { display: grid; place-items: center; margin: 4px 0 10px; }
-.tut-art[hidden] { display: none; }
-.tut-art svg { width: 100%; max-width: 280px; height: 96px; display: block; }
-.tut-art [class^="ta-"], .tut-art [class*=" ta-"] { transform-box: fill-box; transform-origin: center; }
+.crs-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.crs-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--accent-2); }
+.crs-head-btns { display: flex; gap: 6px; }
+.hud-course h3 { font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 6px; }
+.crs-art { display: grid; place-items: center; margin: 4px 0 10px; }
+.crs-art[hidden] { display: none; }
+.crs-art svg { width: 100%; max-width: 280px; height: 96px; display: block; }
+.crs-art [class^="ta-"], .crs-art [class*=" ta-"] { transform-box: fill-box; transform-origin: center; }
 .ta-spin { animation: taSpin 9s linear infinite; }
 .ta-dash { stroke-dasharray: 7 7; animation: taDash 1.2s linear infinite; }
 .ta-pulse { animation: taPulse 2.4s ease-in-out infinite; }
@@ -404,15 +403,113 @@ body {
 @keyframes taPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 @keyframes taSlide { 0%, 100% { transform: none; } 45%, 70% { transform: translate(-66px, 0); } }
 @keyframes taSlide2 { 0%, 100% { transform: none; } 45%, 70% { transform: translate(-89px, 0); } }
-.hud-tutorial h3 { font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 6px; }
-.hud-tutorial p { font-size: 12.5px; line-height: 1.6; color: var(--ink-dim); min-height: 60px; max-height: 38vh; overflow-y: auto; }
-.hud-tutorial p b { color: var(--ink); }
-.hud-tutorial p sup { font-size: 0.72em; }
-.tut-foot { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
-.tut-check { font-size: 12.5px; font-weight: 650; color: var(--cube-green); }
-.tut-check[hidden] { display: none; }
-.tut-nav { display: flex; gap: 8px; margin-left: auto; }
-.tut-nav .btn { height: 34px; padding: 0 14px; font-size: 12.5px; }
+.crs-text { font-size: 12.5px; line-height: 1.6; color: var(--ink-dim); max-height: 30vh; overflow-y: auto; }
+.crs-text b { color: var(--ink); }
+.crs-text sup { font-size: 0.72em; }
+.crs-done-tag { color: var(--cube-green); }
+.crs-objs { list-style: none; margin: 11px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.crs-objs li { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; line-height: 1.45; color: var(--ink-dim); }
+.crs-objs li i {
+  flex: none; width: 15px; height: 15px; margin-top: 1px; border-radius: 50%;
+  border: 1.6px solid var(--line-strong); position: relative; transition: .25s;
+}
+.crs-objs li em { font-style: normal; color: var(--accent-2); font-weight: 650; }
+.crs-objs li.now { color: var(--ink); }
+.crs-objs li.now i { border-color: var(--accent-2); box-shadow: 0 0 9px var(--glow); animation: taPulse 2.4s ease-in-out infinite; }
+.crs-objs li.done { color: var(--ink-faint); }
+.crs-objs li.done i { border-color: var(--cube-green); background: rgba(0, 197, 150, 0.18); }
+.crs-objs li.done i::after {
+  content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+  border: solid var(--cube-green); border-width: 0 2px 2px 0; transform: rotate(42deg);
+}
+.crs-hint { margin-top: 10px; }
+.crs-hint-btn {
+  font-family: var(--font); font-size: 11.5px; font-weight: 600; color: var(--accent-2);
+  background: none; border: none; cursor: pointer; padding: 0;
+}
+.crs-hint-btn:hover { text-decoration: underline; }
+.crs-hint-btn[hidden] { display: none; }
+.crs-hint-text {
+  margin-top: 6px; padding: 9px 11px; border-radius: 10px;
+  font-size: 12px; line-height: 1.55; color: var(--ink-dim);
+  background: rgba(95, 200, 255, 0.07); border: 1px solid var(--line);
+}
+.crs-hint-text b { color: var(--ink); }
+.crs-hint-text[hidden] { display: none; }
+.crs-foot { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
+.crs-check { font-size: 12.5px; font-weight: 650; color: var(--cube-green); }
+.crs-check[hidden] { display: none; }
+.crs-nav { display: flex; gap: 8px; margin-left: auto; }
+.crs-nav .btn { height: 34px; padding: 0 14px; font-size: 12.5px; }
+
+/* ----------------------------------------------------------- academy: level map */
+.map-card {
+  position: relative;
+  width: min(620px, 94vw); max-height: 88vh;
+  display: flex; flex-direction: column;
+  padding: 30px 28px 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(22,30,52,0.94), rgba(13,18,34,0.94));
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 40px 90px -30px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06);
+  animation: pop .4s cubic-bezier(.2,.9,.25,1);
+}
+.map-card h2 { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
+.map-sub { font-size: 12.5px; line-height: 1.55; color: var(--ink-dim); margin-top: 6px; }
+.map-close { position: absolute; top: 16px; right: 16px; }
+.map-progress-row { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; }
+.map-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(150, 175, 220, 0.14); overflow: hidden; }
+.map-bar i {
+  display: block; height: 100%; width: 0; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--cube-green));
+  transition: width .4s ease;
+}
+.map-progress { font-size: 11.5px; font-weight: 650; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.map-grad {
+  margin-top: 8px; padding: 9px 12px; border-radius: 10px; text-align: center;
+  font-size: 12.5px; font-weight: 650; color: var(--cube-green);
+  background: rgba(0, 197, 150, 0.10); border: 1px solid rgba(0, 197, 150, 0.35);
+}
+.map-grad[hidden] { display: none; }
+.map-list { overflow-y: auto; margin-top: 10px; padding-right: 4px; }
+.map-chapter { margin-bottom: 14px; }
+.map-chapter h3 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent-2);
+  margin-bottom: 7px;
+}
+.map-chapter h3 span {
+  width: 18px; height: 18px; border-radius: 6px; flex: none;
+  display: grid; place-items: center;
+  font-size: 10px; color: var(--ink);
+  background: var(--glass-2); border: 1px solid var(--line);
+}
+.map-levels { display: flex; flex-direction: column; gap: 5px; }
+.map-level {
+  display: flex; align-items: center; gap: 11px;
+  width: 100%; padding: 8px 11px;
+  font-family: var(--font); font-size: 12.5px; font-weight: 550; color: var(--ink);
+  text-align: left;
+  border-radius: 11px; border: 1px solid var(--line);
+  background: rgba(20, 28, 48, 0.4);
+  cursor: pointer; transition: .15s;
+}
+.map-level:hover:not(:disabled) { background: var(--glass-2); border-color: var(--line-strong); transform: translateX(2px); }
+.map-level .ml-num {
+  width: 24px; height: 24px; border-radius: 8px; flex: none;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums;
+  background: var(--glass-2); border: 1px solid var(--line); color: var(--ink-dim);
+}
+.map-level .ml-title { flex: 1; }
+.map-level .ml-icon { width: 16px; height: 16px; flex: none; color: var(--ink-faint); }
+.map-level .ml-icon svg { width: 16px; height: 16px; display: block; }
+.map-level.done .ml-icon { color: var(--cube-green); }
+.map-level.done .ml-num { border-color: rgba(0, 197, 150, 0.4); color: var(--cube-green); }
+.map-level.open .ml-icon { color: var(--accent-2); }
+.map-level.open { border-color: rgba(95, 200, 255, 0.35); box-shadow: 0 0 14px -6px var(--glow); }
+.map-level.locked { opacity: 0.45; cursor: default; }
+.map-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
 
 /* toast */
 .toast {
@@ -463,8 +560,8 @@ body {
   .scramble-mini { display: none; }
   /* icon-only secondary buttons so everything stays inside the frame; the
      scramble button shrinks to whatever is left */
-  #btn-undo span, #btn-reset span, #btn-view-reset span, #btn-tutorial span { display: none; }
-  #btn-undo, #btn-reset, #btn-view-reset, #btn-tutorial { flex: 0 0 48px; }
+  #btn-undo span, #btn-reset span, #btn-view-reset span, #btn-learn span { display: none; }
+  #btn-undo, #btn-reset, #btn-view-reset, #btn-learn { flex: 0 0 48px; }
   #btn-scramble { padding: 0 6px; }
   #btn-scramble svg { display: none; }
 
@@ -484,15 +581,17 @@ body {
   .twist-row .axis-tag { grid-column: 1 / -1; justify-content: center; font-size: 11px; }
   .twist-row .tw { width: 100%; height: 38px; }
 
-  /* tutorial -> card pinned under the top bar so the bottom controls stay free */
-  .hud-tutorial {
+  /* level panel -> card pinned under the top bar so the bottom controls stay free */
+  .hud-course {
     right: 12px; left: 12px; width: auto; bottom: auto;
     top: calc(env(safe-area-inset-top) + 64px);
     padding: 13px 14px 12px;
   }
-  .hud-tutorial p { min-height: 0; max-height: 26vh; }
-  .tut-art svg { height: 64px; }
-  .tut-art { margin: 2px 0 7px; }
+  .crs-text { max-height: 18vh; }
+  .crs-art svg { height: 56px; }
+  .crs-art { margin: 2px 0 7px; }
+  .crs-objs { gap: 5px; }
+  .map-card { padding: 24px 16px 16px; }
 
   /* twist dock rows may include the extra grip row -> let them wrap */
   .twist-rows { flex-wrap: wrap; }
