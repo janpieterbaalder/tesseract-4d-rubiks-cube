@@ -70,25 +70,39 @@ animation) → perspective-project **4D → 3D** → orbit → perspective-proje
 
 ## Learn to solve — the Hypercube Academy
 
-New here? Hit the **Learn** button (or press `L`) to open the **Hypercube
-Academy**: **25 standalone, hands-on levels in 8 chapters** that run inside
-the live 3D scene and take you from zero to a complete solving method.
-Every level sets up the real puzzle (resets, engineered states, scrambles or
-animated demos), states a few objectives, and detects completion through the
-actual engine — twists, grips, undos, piece selections, 4D view moves and
-solved-state checks. Finishing a level unlocks the next; progress is saved in
-the browser.
+New here? Hit the **Learn** button (or press `L`) and meet **Professor Tess**,
+your personal teacher: **23 guided lessons in 7 chapters** that run inside the
+live 3D scene and take you from zero to a complete solving method. The
+professor (an avatar with speech bubbles and moods) doesn't just describe the
+puzzle — she **teaches** it:
+
+- she **demonstrates moves on the cube itself**, with animated demos you can
+  skip or replay;
+- she **lights up the blocks that matter** — the cell she's talking about, the
+  piece that's out of place, the plus you're building — with a pulsing golden
+  glow and a spotlight that dims everything else;
+- she **hands you the controls** after every demonstration: free-practice
+  objectives detected through the actual engine (twists, grips, undos, piece
+  selections, 4D view moves and solved-state checks);
+- she **guides specific algorithms move by move**: each expected move is
+  spelled out, the right twist button pulses once you select the right cell,
+  and a wrong move is gently taken back;
+- lessons run on a **practice copy** of the puzzle — your own game (state,
+  history, camera, clock) is parked on entry and restored the moment you
+  leave.
+
+Finishing a lesson unlocks the next; progress is saved in the browser. All
+lesson texts adapt to touch devices (no Ctrl/Shift talk on a phone).
 
 | Chapter | What you learn |
 | --- | --- |
-| 1 · The Shape | Read the projection, orbit/zoom, rotate through 4D, find the hidden cell |
-| 2 · The Pieces | The four piece families, your first twist, the 180°/120° grips, twist order |
-| 3 · Detective School | Solve 1-, 2- and 3-twist scrambles, plus a grip-scramble, by pure reading |
-| 4 · The Commutator Lab | A B A′ B′ performed and verified move-by-move, damage spotting (the Lab commutator displaces just 13 of 80 pieces — the provable minimum), inverting a demoed commutator, conjugates |
-| 5 · Wave 1 | All 24 two-colour pieces home — graded per wave, the rest may stay wild |
-| 6 · Wave 2 | All 32 three-colour pieces via commutator three-cycles |
-| 7 · Wave 3 + RKT | The famous RKT endgame: the centre cell *is* a 3D cube, plus full graded solves |
-| 8 · Graduation | A five-twist final exam, fully graded |
+| 1 · Welcome to the 4th Dimension | Read the projection, orbit/zoom, centre cells, rotate through 4D, find the hidden cell |
+| 2 · How the Cube Moves | Your first twist (demoed, then yours), all three twist planes guided move-by-move, the 180°/120° grips on glowing blocks, twist order |
+| 3 · Detective School | Solve 1-, 2- and 3-twist scrambles with the displaced pieces glowing |
+| 4 · Wave 1 · Build the Plus | The four piece families (each lit up in turn), **where to start: the plus** of one cell, a one-move rescue demoed then guided, a two-move rescue algorithm, Wave 1 solo |
+| 5 · The Magic Sequence | A B A′ B′ demonstrated, its 13-piece footprint lit up (the provable minimum), the inverse guided move-by-move, your own commutator, conjugates |
+| 6 · Waves 2 & 3 · The Endgame | Ferry one glowing piece home with a guided commutator, Wave 2 solo, the famous RKT trick (the centre cell *is* a 3D cube) |
+| 7 · Graduation | A fully graded dress rehearsal and a four-twist final exam — with the professor one hint-button away |
 
 The method follows Roice Nelson's
 [Ultimate Solution to a 3×3×3×3](https://superliminal.com/cube/solution/solution.htm)
@@ -110,8 +124,8 @@ technique.
 | Bring a cell to the centre | `Ctrl`+click, or press and hold (touch) — a pure view change |
 | Rotate through the 4th dimension | `Shift`+drag |
 | Scramble · Undo · Reset | `S` · `U` · `R` |
-| Open the Academy (levels) | **Learn** button, or `L` / `T` — during a level, `R` restarts it |
-| Minimise the level panel | `–` button on the panel, or `M` — the level keeps running, only the current objective stays visible; tap the bar to expand |
+| Open the Academy (lessons) | **Learn** button, or `L` / `T` — during a lesson, `R` restarts it, `Enter` continues |
+| Minimise the lesson panel | `–` button on the panel, or `M` — the lesson keeps running, only the current objective or guided move stays visible; tap the bar to expand |
 
 **Tip:** because cells hide behind one another, ctrl-click (or hold) a cell to
 centre it before working on it — centring also cycles the hidden cell back
@@ -121,11 +135,11 @@ into view.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | Markup + HUD panels + Academy level panel & level map |
+| `index.html` | Markup + HUD panels + Academy lesson panel & lesson map |
 | `styles.css` | Dark, glassy theme around the bright puzzle palette |
-| `app.js` | 4D model, twist engine, projection, renderer, input, Hypercube Academy level system |
+| `app.js` | 4D model, twist engine, projection, renderer, input, Hypercube Academy tutor (Professor Tess) |
 | `test/math.test.js` | Mathematical verification of the puzzle engine |
-| `test/levels.test.js` | Behaviour tests for the Academy: curriculum shape, event flow, unlocking, commutator detection, wave goals |
+| `test/levels.test.js` | Behaviour tests for the Academy tutor: curriculum shape, step flow, the practice-copy snapshot, a full playthrough of every lesson, guided-move matching, wave goals, unlocking |
 
 ## Tweaking
 
