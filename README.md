@@ -122,7 +122,7 @@ technique.
 | Select a cell | Click any sticker — the cell lights up and the twist panel opens |
 | Twist the selected cell | The panel's ↺ / ↻ buttons, or keys `1` `2` `3` (`Shift` reverses) |
 | Diagonal grips | Select an **edge or corner block** — the panel adds its 180° flip / 120° spin |
-| Bring a cell to the centre | Select the cell, then press the panel's **cell → centre** button — or `Ctrl`+click / press-and-hold (touch). A pure view change |
+| Bring a cell to the centre | `Ctrl`+click, or press and hold (touch) — a pure view change |
 | Rotate through the 4th dimension | `Shift`+drag |
 | Scramble · Undo · Reset | `S` · `U` · `R` |
 | Open the Academy (lessons) | **Learn** button, or `L` / `T` — during a lesson, `R` restarts it, `Enter` continues |

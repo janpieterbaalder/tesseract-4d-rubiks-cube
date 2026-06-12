@@ -995,10 +995,10 @@ const LESSONS = [
         glow: () => pieces.filter(p => p.cur[X] === 1) },
       { say: 'See? It now sits in the centre, shaped <b>exactly</b> like the cell it replaced. In 4D, every cell is the centre of its own world.' },
       { say: () => byInput(
-          'Your turn: <b>tap any sticker</b> to select its cell, then press the <b>cell → centre</b> button in the twist panel — and it spins to the middle. (Ctrl+click does the same.) A pure view change, never a move.',
-          'Your turn: <b>tap any sticker</b> to select its cell, then press the <b>cell → centre</b> button in the panel below — and it spins to the middle. A pure view change, never a move.'),
+          'Your turn: <b>Ctrl+click</b> any cell — or <b>press-and-hold</b> it on touch — and it spins to the middle. A pure view change, never a move.',
+          'Your turn: <b>press and hold</b> any cell for half a second — and it spins to the middle. A pure view change, never a move.'),
         goals: () => [
-          { text: 'Bring a cell to the centre (select it, then press cell → centre)', on: 'center' },
+          { text: byInput('Bring a cell to the centre (Ctrl+click / hold)', 'Bring a cell to the centre (press and hold it)'), on: 'center' },
         ] },
       { say: 'Perfect. You\'ll do this constantly while solving: centre a cell to work on it comfortably.' },
     ],
@@ -1008,11 +1008,11 @@ const LESSONS = [
     id: 'rot4', ch: 0, title: 'Rotating through 4D',
     steps: [
       { say: () => byInput(
-          'Now the real magic. Hold <b>Shift and drag</b>: the whole structure rotates through the <b>4th dimension</b> and the cells trade places — the centre cube flies out into a tunnel and another takes its spot. Every <b>cell → centre</b> press is such a rotation too. Either way it\'s still only your viewpoint.',
-          'Now the real magic. Every time you send a cell to the middle with <b>cell → centre</b>, the whole structure rotates through the <b>4th dimension</b> and the cells trade places — the centre cube flies out into a tunnel and your cell takes its spot. Still only your viewpoint, never a move.') },
+          'Now the real magic. Hold <b>Shift and drag</b>: the whole structure rotates through the <b>4th dimension</b> and the cells trade places — the centre cube flies out into a tunnel and another takes its spot. On touch, press-and-hold cells instead. Either way it\'s still only your viewpoint.',
+          'Now the real magic. Every time you <b>press-and-hold a cell</b>, the whole structure rotates through the <b>4th dimension</b> and the cells trade places — the centre cube flies out into a tunnel and the held cell takes its spot. Still only your viewpoint, never a move.') },
       { say: 'Take it for a spin.',
         goals: () => [
-          { text: byInput('Rotate through 4D: Shift+drag, or centre a cell', 'Rotate through 4D: centre any cell with cell → centre'), on: ['rot4d', 'center'] },
+          { text: byInput('Rotate through 4D: Shift+drag, or press-and-hold a cell', 'Rotate through 4D: press-and-hold a cell'), on: ['rot4d', 'center'] },
           { text: 'Centre 3 different cells', on: 'center', count: 3, key: (i) => i.key },
         ] },
       { say: 'You can now reach every corner of 4D space. One cell still always hides from view, though — let\'s go hunt it.' },
@@ -1024,13 +1024,13 @@ const LESSONS = [
     steps: [
       { say: () => byInput(
           'One cell is always <b>culled</b> from the picture — the one facing the 4D camera — so we can see inside the structure. Right now that\'s the red <b>Outer</b> cell. A hidden cell can\'t be clicked: first rotate through 4D until red stickers appear, then centre them.',
-          'One cell is always <b>culled</b> from the picture — the one facing the 4D camera — so we can see inside the structure. Right now that\'s the red <b>Outer</b> cell. A hidden cell can\'t be tapped: keep sending tunnel cells to the middle with <b>cell → centre</b> until red stickers swing into view, then centre one of them.'),
+          'One cell is always <b>culled</b> from the picture — the one facing the 4D camera — so we can see inside the structure. Right now that\'s the red <b>Outer</b> cell. A hidden cell can\'t be tapped: keep holding cells until red stickers swing into view, then hold one of them.'),
         goals: () => [
           { text: 'Bring the hidden red Outer cell to the centre', on: ['rot4d', 'orbit', 'viewChange', 'center'], check: () => cellAtCenter(W, 1) },
         ],
         hint: () => byInput(
-          'Shift+drag slowly in one direction and watch for red stickers; the moment they appear, Ctrl+click one — or select one and press cell → centre.',
-          'Each cell → centre press rotates the structure through 4D, so new colours swing into view. Keep centring tunnel cells; the moment red stickers appear, select one and press cell → centre again.') },
+          'Shift+drag slowly in one direction and watch for red stickers; the moment they appear, Ctrl+click one. On touch: keep press-and-holding tunnel cells until the red ones swing into view, then hold one of them.',
+          'Keep press-and-holding tunnel cells — each hold rotates the structure through 4D and new colours swing into view. The moment red stickers appear, press-and-hold one of them.') },
       { say: 'There it is — the cell that normally wraps invisibly around everything, sitting politely in the middle. Nothing in 4D can hide from you anymore.', mood: 'happy' },
     ],
     done: 'Hide-and-seek champion of the 4th dimension.',
@@ -1316,7 +1316,9 @@ const LESSONS = [
             count: 3, key: (i) => keyOf(i.mv.d, i.mv.sd),
             when: (i) => !(i.mv.d === W && i.mv.sd === -1) && cellAtCenter(W, -1) },
         ],
-        hint: 'The white Inner cell is centred when the small middle cube is white — select it and press cell → centre if it drifts away. Then select any tunnel cell and twist, watching the white cube.' },
+        hint: () => byInput(
+          'The white Inner cell is centred when the small middle cube is white — Ctrl+click / hold it if it drifts away. Then select any tunnel cell and twist, watching the white cube.',
+          'The white Inner cell is centred when the small middle cube is white — press-and-hold it if it drifts away. Then select any tunnel cell and twist, watching the white cube.') },
       { say: 'So in Wave 3 you solve the last corners by running your favourite <b>3D algorithms</b>, one dimension up. Every algorithm you ever learned still works here.' },
     ],
     done: 'The famous RKT trick is yours.',
@@ -1698,7 +1700,6 @@ function deselect() {
 
 const ARROW_CCW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a9 9 0 1 1-1.5 5"/><path d="M3 3v5h5"/></svg>';
 const ARROW_CW  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a9 9 0 1 0 1.5 5"/><path d="M21 3v5h-5"/></svg>';
-const ICON_CENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>';
 
 function buildTwistRows() {
   const d = selected.d;
@@ -1726,19 +1727,7 @@ function buildTwistRows() {
         `<button class="tw twa" data-theta="${2 * Math.PI / 3}" title="Spin 120° CW about this corner's diagonal">${ARROW_CW}</button>`;
     el.twistRows.appendChild(row);
   }
-  // view shortcut: fly the selected cell to the projection centre — the
-  // button-first route to centring (press-and-hold stays as a shortcut)
-  const crow = document.createElement('div');
-  crow.className = 'twist-row twist-row-center';
-  crow.innerHTML =
-    `<span class="axis-tag">Cell → <b>centre</b></span>` +
-    `<button class="tw tw-center" title="Bring this cell to the centre of the projection — a pure view change, never a move">${ICON_CENTER}</button>`;
-  el.twistRows.appendChild(crow);
-  crow.querySelector('.tw-center').addEventListener('click', () => {
-    if (anim) return;
-    if (!startCenterCell(selected.d, selected.sd, false)) toast('Already at the centre');
-  });
-  el.twistRows.querySelectorAll('.tw:not(.tw-center)').forEach(btn => {
+  el.twistRows.querySelectorAll('.tw').forEach(btn => {
     btn.addEventListener('click', () => {
       if (anim || demo) return;
       if (btn.classList.contains('twa')) {
