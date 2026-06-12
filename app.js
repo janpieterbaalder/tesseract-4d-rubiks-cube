@@ -970,10 +970,10 @@ const LEVELS = [
   },
   {
     id: 'shape-3', ch: 0, title: 'Rotating through 4D', art: 'rot4d',
-    text: 'Hold <b>Shift and drag</b>: the whole structure rotates through the <b>4th dimension</b> and the cells <b>trade places</b> — the centre cube flies out into a tunnel and another cell takes its spot. This is still only your viewpoint; the puzzle itself never changes. Combine free 4D rotation with centring to inspect any cell from any angle.',
+    text: 'Hold <b>Shift and drag</b>: the whole structure rotates through the <b>4th dimension</b> and the cells <b>trade places</b> — the centre cube flies out into a tunnel and another cell takes its spot. On touch there is no Shift: <b>press-and-hold a cell</b> to swing it to the centre — that is a 4D rotation too. Either way it is still only your viewpoint; the puzzle itself never changes.',
     enter: () => { levelSetup(); resetView(); },
     objs: () => [
-      { text: 'Rotate through the 4th dimension (Shift+drag)', on: 'rot4d' },
+      { text: 'Rotate through 4D: Shift+drag, or press-and-hold a cell (touch)', on: ['rot4d', 'center'] },
       { text: 'Centre 3 different cells', on: 'center', count: 3, key: (i) => i.key },
     ],
     doneText: 'You can now reach every corner of 4D space. One cell is still always hidden, though…',
@@ -981,7 +981,7 @@ const LEVELS = [
   {
     id: 'shape-4', ch: 0, title: 'Find the hidden cell', art: 'center',
     text: 'One cell is always culled from the picture — the one facing the 4D camera — so you can see inside the structure. Right now that is the <b>red Outer cell</b>. A hidden cell can\'t be clicked, so first rotate through 4D until red stickers appear, then centre them. While solving you will do this constantly: <i>no cell is ever really gone</i>.',
-    hint: 'Shift+drag slowly in one direction and watch for red stickers. The moment they appear, Ctrl+click (or press-and-hold) one of them.',
+    hint: 'Shift+drag slowly in one direction and watch for red stickers; the moment they appear, Ctrl+click one. On touch: keep press-and-holding tunnel cells until the red ones swing into view, then hold one of them.',
     enter: () => { levelSetup(); resetView(); },
     objs: () => [
       { text: 'Bring the hidden red Outer cell to the centre', on: ['rot4d', 'orbit', 'viewChange'], check: () => cellAtCenter(W, 1) },
@@ -1335,6 +1335,7 @@ function completeLevel() {
   clearTimeout(crsCheckT);
   el.crsCheck.hidden = true;
   el.course.classList.add('complete');
+  setCourseMin(false); // pop back open so the praise + Next button are visible
   const dt = typeof lv.doneText === 'function' ? lv.doneText() : (lv.doneText || 'Level complete!');
   el.crsText.innerHTML = `<b class="crs-done-tag">✓ Level complete</b><br>${dt}`;
   el.crsHintBtn.hidden = true;
@@ -1361,6 +1362,7 @@ function renderLevel() {
   el.crsNext.hidden = true;
   el.crsRestart.hidden = false;
   el.course.classList.remove('complete');
+  setCourseMin(false); // a fresh level starts expanded so the lesson is readable
   renderObjectives();
 }
 function renderObjectives() {
@@ -1377,6 +1379,18 @@ function flashCheck(msg) {
   el.crsCheck.hidden = false;
   clearTimeout(crsCheckT);
   crsCheckT = setTimeout(() => { el.crsCheck.hidden = true; }, 1600);
+  // the footer is hidden while minimised — mirror the feedback as a toast
+  if (el.course.classList.contains('min')) toast(msg);
+}
+
+// minimise the level panel to a slim "current objective" bar: the level keeps
+// running and scoring, but the scene is free to work in (vital on phones)
+const ICON_MIN = '<svg viewBox="0 0 24 24" width="13" height="13"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const ICON_EXPAND = '<svg viewBox="0 0 24 24" width="13" height="13"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+function setCourseMin(min) {
+  el.course.classList.toggle('min', min);
+  el.crsMin.innerHTML = min ? ICON_EXPAND : ICON_MIN;
+  el.crsMin.title = min ? 'Expand the level panel (M)' : 'Minimise — the level stays active (M)';
 }
 
 function openMap() {
@@ -1678,6 +1692,7 @@ window.addEventListener('keydown', (e) => {
     else doReset();
   }
   else if (k === 'v') { resetView(); }
+  else if (k === 'm') { if (course.active) setCourseMin(!el.course.classList.contains('min')); }
   else if (k === 't' || k === 'l') { el.map.hidden ? openMap() : hide(el.map); }
   else if (k === 'h' || k === '?') { toggle(el.help); }
   else if (k === 'escape') {
@@ -1723,6 +1738,7 @@ const el = {
   crsNext: document.getElementById('crs-next'),
   crsExit: document.getElementById('crs-exit'),
   crsMap: document.getElementById('crs-map'),
+  crsMin: document.getElementById('crs-min'),
   map: document.getElementById('map'),
   mapList: document.getElementById('map-list'),
   mapProgress: document.getElementById('map-progress'),
@@ -1765,6 +1781,11 @@ document.getElementById('map-reset-progress').addEventListener('click', () => {
 });
 el.crsExit.addEventListener('click', exitCourse);
 el.crsMap.addEventListener('click', openMap);
+el.crsMin.addEventListener('click', () => setCourseMin(!el.course.classList.contains('min')));
+// tapping anywhere on the minimised bar (except its buttons) expands it again
+el.course.addEventListener('click', (e) => {
+  if (el.course.classList.contains('min') && !e.target.closest('button')) setCourseMin(false);
+});
 el.crsRestart.addEventListener('click', () => startLevel(course.idx));
 el.crsNext.addEventListener('click', () => {
   if (course.idx >= LEVELS.length - 1) { exitCourse(); openMap(); }

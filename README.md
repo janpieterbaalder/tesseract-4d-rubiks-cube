@@ -111,6 +111,7 @@ technique.
 | Rotate through the 4th dimension | `Shift`+drag |
 | Scramble · Undo · Reset | `S` · `U` · `R` |
 | Open the Academy (levels) | **Learn** button, or `L` / `T` — during a level, `R` restarts it |
+| Minimise the level panel | `–` button on the panel, or `M` — the level keeps running, only the current objective stays visible; tap the bar to expand |
 
 **Tip:** because cells hide behind one another, ctrl-click (or hold) a cell to
 centre it before working on it — centring also cycles the hidden cell back
