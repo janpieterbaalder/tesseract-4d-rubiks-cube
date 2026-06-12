@@ -69,9 +69,9 @@
         <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         <span>View</span>
       </button>
-      <button class="btn" id="btn-tutorial" title="Interactive tutorial (T)">
+      <button class="btn" id="btn-learn" title="Hypercube Academy — learn to solve, level by level (L)">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5v4.5c0 1.5 3 3 7 3s7-1.5 7-3v-4.5M22 9v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Tutorial</span>
+        <span>Learn</span>
       </button>
     </div>
 
@@ -98,24 +98,52 @@
       <div class="legend-grid" id="legend-grid"><!-- generated --></div>
     </aside>
 
-    <!-- Interactive tutorial -->
-    <section class="hud hud-tutorial" id="tutorial" hidden>
-      <div class="tut-head">
-        <span class="tut-progress" id="tut-progress"></span>
-        <button class="dock-close" id="tut-exit" title="Exit tutorial">✕</button>
+    <!-- Hypercube Academy: the level panel (visible while a level is running) -->
+    <section class="hud hud-course" id="course" hidden>
+      <div class="crs-head">
+        <span class="crs-tag" id="crs-tag"></span>
+        <div class="crs-head-btns">
+          <button class="dock-close" id="crs-map" title="All levels">
+            <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button class="dock-close" id="crs-exit" title="Exit the Academy">✕</button>
+        </div>
       </div>
-      <span class="tut-chapter" id="tut-chapter"></span>
-      <h3 id="tut-title">Welcome</h3>
-      <div class="tut-art" id="tut-art" hidden></div>
-      <p id="tut-text"></p>
-      <div class="tut-foot">
-        <span class="tut-check" id="tut-check" hidden>✓ Nice!</span>
-        <div class="tut-nav">
-          <button class="btn" id="tut-prev">Back</button>
-          <button class="btn btn-primary" id="tut-next">Next</button>
+      <h3 id="crs-title"></h3>
+      <div class="crs-art" id="crs-art" hidden></div>
+      <p class="crs-text" id="crs-text"></p>
+      <ul class="crs-objs" id="crs-objs"></ul>
+      <div class="crs-hint">
+        <button class="crs-hint-btn" id="crs-hint-btn" hidden>Show hint</button>
+        <p class="crs-hint-text" id="crs-hint" hidden></p>
+      </div>
+      <div class="crs-foot">
+        <span class="crs-check" id="crs-check" hidden></span>
+        <div class="crs-nav">
+          <button class="btn" id="crs-restart">Restart</button>
+          <button class="btn btn-primary" id="crs-next" hidden>Next level</button>
         </div>
       </div>
     </section>
+
+    <!-- Hypercube Academy: the level map -->
+    <div class="overlay" id="map" hidden>
+      <div class="map-card">
+        <button class="dock-close map-close" id="map-close" title="Close">✕</button>
+        <h2>Hypercube Academy</h2>
+        <p class="map-sub">Learn the 4D cube from zero in standalone, hands-on levels — all the way to a complete solving method. Each level runs on the real puzzle; finishing one unlocks the next. Progress is saved on this device.</p>
+        <div class="map-progress-row">
+          <div class="map-bar"><i id="map-bar-fill"></i></div>
+          <span class="map-progress" id="map-progress"></span>
+        </div>
+        <p class="map-grad" id="map-grad" hidden>🎓 Course complete — you are a certified hypercubist.</p>
+        <div class="map-list" id="map-list"><!-- generated --></div>
+        <div class="map-foot">
+          <button class="btn btn-ghost" id="map-reset-progress">Reset progress</button>
+          <button class="btn btn-primary" id="map-continue">Continue</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Win overlay -->
     <div class="overlay" id="win" hidden>
@@ -174,7 +202,7 @@
           </ul>
         </div>
 
-        <button class="btn btn-primary btn-wide" id="help-tutorial">Start the interactive tutorial</button>
+        <button class="btn btn-primary btn-wide" id="help-learn">Learn to solve — open the Academy levels</button>
         <button class="btn btn-ghost btn-wide" id="help-ok">Got it</button>
       </div>
     </div>

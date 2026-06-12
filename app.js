@@ -526,7 +526,7 @@ function startCenterCell(d, sd, reverse) {
   const theta = Math.acos(Math.max(-1, Math.min(1, dot4(from, to))));
   if (theta < 1e-3) return false;         // already centred
   anim = { type: 'view', mode: 'geo', from, to, base: view4, t: 0, dur: DUR_CENTER };
-  tutorialEvent('center');
+  courseEvent('center', { key: AXN[d] + (sd > 0 ? '+' : '-'), d, sd });
   return true;
 }
 
@@ -541,23 +541,24 @@ function tick(now) {
     if (anim.type === 'twist') {
       anim.angle = e * anim.target;
       if (k >= 1) {
+        let mv;
         if (anim.mode === 'axis') {
           commitTwistAxis(anim.d, anim.sd, anim.inAx, anim.u3, anim.theta);
-          if (anim.record) history.push({ mode:'axis', d:anim.d, sd:anim.sd, inAx:anim.inAx, u3:anim.u3, theta:anim.theta });
+          mv = { mode:'axis', d:anim.d, sd:anim.sd, inAx:anim.inAx, u3:anim.u3, theta:anim.theta };
         } else {
           commitTwist(anim.d, anim.sd, anim.i, anim.j, anim.dir);
-          if (anim.record) history.push({ mode:'plane', d:anim.d, sd:anim.sd, i:anim.i, j:anim.j, dir:anim.dir });
+          mv = { mode:'plane', d:anim.d, sd:anim.sd, i:anim.i, j:anim.j, dir:anim.dir };
         }
+        if (anim.record) history.push(mv);
         const rec = anim.record, cd = anim.countDelta;
         const done = anim.onDone;
-        const mode = anim.mode;
         anim = null;
-        afterMove(cd, rec, mode);
+        afterMove(cd, rec, mv);
         if (done) done();
       }
     } else if (anim.type === 'view') {
       view4 = matMul4(rotBetween(anim.from, anim.to, e), anim.base);
-      if (k >= 1) { anim = null; }
+      if (k >= 1) { anim = null; courseEvent('viewChange'); }
     }
   }
 
@@ -566,11 +567,12 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-function afterMove(countDelta, record, mode) {
+function afterMove(countDelta, record, mv) {
   if (record && countDelta > 0) {
-    tutorialEvent('twist');
-    if (mode === 'axis') tutorialEvent('twistAxis'); // edge/corner grip
+    courseEvent('twist', { mv });
+    if (mv.mode === 'axis') courseEvent('twistAxis', { mv }); // edge/corner grip
   }
+  courseEvent('moved', { mv, record }); // any committed move (incl. undos) — level goals re-check here
   if (scrambledOnce) {
     moves = Math.max(0, moves + countDelta);
     if (!timing && !solvedState && countDelta > 0) { timing = true; startT = performance.now(); }
@@ -635,32 +637,24 @@ function doUndo() {
   const m = history.pop();
   if (m.mode === 'axis') startTwistAxis(m.d, m.sd, m.inAx, m.u3, -m.theta, { record: false, countDelta: -1 });
   else startTwist(m.d, m.sd, m.i, m.j, -m.dir, { record: false, countDelta: -1 });
-  tutorialEvent('undo');
+  courseEvent('undo');
 }
 
 function win() {
   solvedState = true;
   timing = false;
   finalMs = performance.now() - startT;
-  if (tutorial.active) { tutorialEvent('solved'); return; } // tutorial handles its own praise
+  if (course.active) { courseEvent('solved'); return; } // the Academy handles its own praise
   el.winTime.textContent = fmt(finalMs);
   el.winMoves.textContent = moves;
   // guard: if the player scrambles again within the delay, don't pop the overlay
   setTimeout(() => { if (solvedState) show(el.win); }, 520);
 }
 
-// ----------------------------------------------------------------- tutorial
-// A guided, interactive course in 5 chapters: each action step waits for the
-// player to actually perform it (detected via tutorialEvent hooks in the
-// engine), then auto-advances. The practice steps scramble the real puzzle and
-// watch for isSolved(), so the player learns on the genuine mechanics.
-// The solving method taught in chapter 4 follows the established route for the
-// 3^4: Roice Nelson's "Ultimate Solution to a 3x3x3x3" (superliminal.com) and
-// the modern methods documented on hypercubing.xyz — two-colour pieces first,
-// then three-colour, then four-colour, finishing with the RKT technique.
-// Inline SVG illustrations for the tutorial card, drawn in the same isometric
-// 3D style as the puzzle itself. Lightly animated via the ta-* CSS classes in
-// styles.css (spin / dash-flow / pulse / slide).
+// ----------------------------------------------------------------- academy art
+// Inline SVG illustrations for the Academy level card, drawn in the same
+// isometric 3D style as the puzzle itself. Lightly animated via the ta-* CSS
+// classes in styles.css (spin / dash-flow / pulse / slide).
 function taShade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
@@ -709,7 +703,7 @@ function taDice(n) {
     .map(([a, b]) => `<ellipse cx="${140 + a * 10}" cy="${28 + b * 5}" rx="4.5" ry="2.6" fill="#3a3208"/>`).join('');
   return `<svg viewBox="0 0 280 96">${taCube(140, 16, 24, '#ffe03d', { d: 20, cls: 'ta-pulse' })}${pips}</svg>`;
 }
-const TUT_ART = {
+const ART = {
   tesseract: `<svg viewBox="0 0 280 96">
     ${taFrame(140, 8, 38, 32, '#4f7dff')}
     ${taCube(140, 33, 13, '#ffffff', { d: 11, cls: 'ta-pulse' })}
@@ -810,204 +804,616 @@ const TUT_ART = {
   </svg>`,
 };
 
-const TUT_STEPS = [
-  // ---- chapter 1: the shape -------------------------------------------------
+// ----------------------------------------------------------------- academy
+// "Hypercube Academy": a course of standalone, hands-on LEVELS that runs
+// inside the live 3D scene. Each level sets up the real puzzle (resets,
+// engineered states, scrambles or animated demos), states a few objectives,
+// and detects completion through courseEvent() hooks wired into the engine:
+// twists, grips, undo, piece selection, view moves and solved-state checks.
+// Finishing a level unlocks the next; progress persists in localStorage.
+// The curriculum runs from zero (reading the projection) to a complete
+// solving method for the 3^4, following Roice Nelson's "Ultimate Solution
+// to a 3x3x3x3" (superliminal.com) and the modern methods documented on
+// hypercubing.xyz: two-colour pieces first, then three-colour, then
+// four-colour via the RKT technique.
+
+// --- state inspection used by level goals ------------------------------------
+function pieceHome(p) {
+  for (const st of p.stickers) {
+    const { fa, fs } = facingOf(p, st);
+    if (fa !== st.axis || fs !== (p.solved[st.axis] > 0 ? 1 : -1)) return false;
+  }
+  return true;
+}
+// "wave" goal: every piece with up to maxC colours is home; bigger pieces are
+// not graded (they may stay scrambled) — exactly how the method is practised
+function waveSolved(maxC) {
+  return pieces.every(p => p.stickers.length > maxC || pieceHome(p));
+}
+function displacedPieces() { return pieces.filter(p => !pieceHome(p)); }
+// is cell (d, sd) currently sitting at the projection centre? The centre is
+// the -W direction in view space, so test the W-row of the view matrix.
+function cellAtCenter(d, sd) { return view4[3][d] * sd < -0.92; }
+
+// --- move-pattern helpers (commutator / conjugate detection) ----------------
+function sameCellMove(a, b) { return a.d === b.d && a.sd === b.sd; }
+function isInverseMove(m, a) {
+  if (!m || !a || m.mode !== a.mode || !sameCellMove(m, a)) return false;
+  if (m.mode === 'plane')
+    return (m.i === a.i && m.j === a.j && m.dir === -a.dir) ||
+           (m.i === a.j && m.j === a.i && m.dir === a.dir);
+  const dp = m.u3[0] * a.u3[0] + m.u3[1] * a.u3[1] + m.u3[2] * a.u3[2];
+  if (Math.abs(Math.abs(a.theta) - Math.PI) < 1e-6)            // a 180° flip undoes itself
+    return Math.abs(dp) > 0.99 && Math.abs(Math.abs(m.theta) - Math.PI) < 1e-6;
+  if (dp > 0.99)  return Math.abs(m.theta + a.theta) < 1e-6;
+  if (dp < -0.99) return Math.abs(m.theta - a.theta) < 1e-6;
+  return false;
+}
+// the last n recorded player moves are all the identical plane twist
+function lastMovesIdentical(n) {
+  const s = course.seq;
+  if (s.length < n) return false;
+  const a = s[s.length - n];
+  if (a.mode !== 'plane') return false;
+  return s.slice(-n).every(m =>
+    m.mode === 'plane' && sameCellMove(m, a) && m.i === a.i && m.j === a.j && m.dir === a.dir);
+}
+
+// --- demo playback: levels can perform animated move sequences ---------------
+let demo = null;
+function playDemo(moves, gap = 320) {
+  demo = { queue: moves.slice(), gap };
+  stepDemo();
+}
+function stepDemo() {
+  const cur = demo;
+  if (!cur) return;
+  const m = cur.queue.shift();
+  if (!m) { demo = null; courseEvent('demoDone'); return; }
+  const opts = {
+    record: false, countDelta: 0,
+    onDone: () => setTimeout(() => { if (demo === cur) stepDemo(); }, cur.gap),
+  };
+  const started = m.mode === 'axis'
+    ? startTwistAxis(m.d, m.sd, m.inAx, m.u3, m.theta, opts)
+    : startTwist(m.d, m.sd, m.i, m.j, m.dir, opts);
+  // another animation (e.g. a view move) may be in flight — retry shortly
+  if (!started) {
+    cur.queue.unshift(m);
+    setTimeout(() => { if (demo === cur) stepDemo(); }, 180);
+  }
+}
+function stopDemo() { demo = null; }
+
+// --- level state builders -----------------------------------------------------
+// reset silently to solved, apply an optional instant state builder, then
+// initialise the counters so the level starts clean
+function levelSetup(build) {
+  anim = null;
+  stopDemo();
+  for (const p of pieces) { p.cur = p.solved.slice(); p.rot = I4(); }
+  history.length = 0;
+  if (build) build();
+  moves = 0; el.moves.textContent = '0';
+  timing = false; startT = performance.now(); el.time.textContent = '0:00';
+  scrambledOnce = true; solvedState = isSolved();
+  deselect();
+  el.undo.disabled = true;
+  hide(el.win);
+}
+function levelScramble(n) {
+  levelSetup(() => {
+    let last = -1;
+    for (let s = 0; s < n; s++) {
+      let d, sd;
+      do { d = (Math.random() * 4) | 0; sd = Math.random() < 0.5 ? 1 : -1; }
+      while (d * 2 + (sd > 0 ? 0 : 1) === last);
+      last = d * 2 + (sd > 0 ? 0 : 1);
+      const [i, j] = planesFor(d)[(Math.random() * 3) | 0];
+      commitTwist(d, sd, i, j, Math.random() < 0.5 ? 1 : -1);
+    }
+  });
+}
+
+// the fixed commutator used by the Lab levels:
+// A = Top cell, XZ-plane CW; B = Right cell, ZW-plane CW; then A′, B′.
+// This pair has the minimal commutator footprint on the 3^4 — it displaces
+// just 13 of the 80 pieces (verified by exhaustive search in the tests).
+const LAB_A = { mode: 'plane', d: Y, sd: 1, i: X, j: Z, dir: 1 };
+const LAB_B = { mode: 'plane', d: X, sd: 1, i: Z, j: W, dir: 1 };
+const invMove = (m) => ({ ...m, dir: -m.dir });
+const LAB_COMM = [LAB_A, LAB_B, invMove(LAB_A), invMove(LAB_B)];
+const commitMove = (m) => m.mode === 'axis'
+  ? commitTwistAxis(m.d, m.sd, m.inAx, m.u3, m.theta)
+  : commitTwist(m.d, m.sd, m.i, m.j, m.dir);
+
+// --- the curriculum -----------------------------------------------------------
+const CHAPTERS = [
+  'The Shape',
+  'The Pieces',
+  'Detective School',
+  'The Commutator Lab',
+  'The Method · Wave 1',
+  'The Method · Wave 2',
+  'The Method · Wave 3 + RKT',
+  'Graduation',
+];
+
+// Level fields: id (progress key) · ch (chapter) · title · art (ART key) ·
+// text (lesson, HTML) · hint (optional) · enter() (sets up the puzzle state) ·
+// objs() (fresh objective list; built AFTER enter, so it may read course.data) ·
+// doneText (string or function, shown on completion).
+// Objective fields: text · on (event type or list) · count (default 1) ·
+// when(info) (event predicate) · key(info) (count distinct keys instead) ·
+// check() (state predicate; completes the objective when true on a listed event).
+const LEVELS = [
+  // ===== Chapter 1 · The Shape ===============================================
   {
-    ch: 'Chapter 1 · The shape',
-    title: 'Welcome to the 4th dimension',
-    art: TUT_ART.tesseract,
-    text: 'This course teaches you how the 4D cube works and a complete method to solve it. A 3D Rubik\'s cube has 6 flat faces; its 4D big brother has <b>8 cube-shaped cells</b>. What you see is a <i>projection</i> — the same trick as drawing a 3D cube on flat paper, one dimension up. <b>Goal:</b> make every cell a single colour.',
+    id: 'shape-1', ch: 0, title: 'Welcome to the 4th dimension', art: 'tesseract',
+    text: 'This course takes you from zero to a complete method for solving the 4D cube — in small, hands-on levels played on the real puzzle. First, the shape: a 3D Rubik\'s cube has 6 flat faces; this 4D cube has <b>8 cube-shaped cells</b>. What you see is a <i>projection</i> — the same trick as drawing a 3D cube on flat paper, one dimension up. <b>Goal of the game:</b> make every cell a single colour.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Drag anywhere to orbit the projection in 3D', on: 'orbit' },
+      { text: 'Zoom with scroll or pinch', on: 'zoom' },
+    ],
+    doneText: 'Orbiting and zooming never change the puzzle — explore freely, always.',
   },
   {
-    ch: 'Chapter 1 · The shape',
-    title: 'Reading the projection',
-    art: TUT_ART.cells,
-    text: 'The <b>small cube in the middle</b> is one cell (the one furthest away in 4D). The six <b>tapering tunnels</b> around it are six more. The <b>8th cell</b> is the one nearest to you — it would wrap around the outside as a big frame, but it\'s <b>hidden</b> so you can see in, just like the back face of a drawn 3D cube. All 8 cells are identical cubes; only the projection makes them look different.',
+    id: 'shape-2', ch: 0, title: 'Reading the projection', art: 'cells',
+    text: 'The <b>small cube in the middle</b> is one cell — the one furthest away in 4D. The six <b>tapering tunnels</b> around it are six more cells. The <b>8th cell</b> is nearest to you and would wrap around the outside, so it is <b>hidden</b> — exactly like the unseen back face of a drawn 3D cube. All 8 cells are identical cubes; only perspective makes them look different. <b>Ctrl+click</b> a cell — or <b>press-and-hold</b> it on touch — to spin it into the centre.',
+    hint: 'Click and hold any coloured sticker for half a second — its whole cell flies to the middle.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Bring a cell to the centre (Ctrl+click / hold)', on: 'center' },
+    ],
+    doneText: 'The cell you picked now sits in the middle — identical in shape to the one it replaced. That is the 4D symmetry at work: every cell is the centre of its own world.',
   },
   {
-    ch: 'Chapter 1 · The shape',
-    title: 'Look around (3D)',
-    detect: 'orbit',
-    art: TUT_ART.orbit,
-    text: '<b>Drag</b> anywhere to orbit the whole projection in 3D. <b>Scroll</b> or <b>pinch</b> to zoom. This never changes the puzzle. Try dragging now!',
+    id: 'shape-3', ch: 0, title: 'Rotating through 4D', art: 'rot4d',
+    text: 'Hold <b>Shift and drag</b>: the whole structure rotates through the <b>4th dimension</b> and the cells <b>trade places</b> — the centre cube flies out into a tunnel and another cell takes its spot. This is still only your viewpoint; the puzzle itself never changes. Combine free 4D rotation with centring to inspect any cell from any angle.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Rotate through the 4th dimension (Shift+drag)', on: 'rot4d' },
+      { text: 'Centre 3 different cells', on: 'center', count: 3, key: (i) => i.key },
+    ],
+    doneText: 'You can now reach every corner of 4D space. One cell is still always hidden, though…',
   },
   {
-    ch: 'Chapter 1 · The shape',
-    title: 'Rotate through the 4th dimension',
-    detect: ['rot4d', 'center'],
-    art: TUT_ART.rot4d,
-    text: 'Hold <b>Shift and drag</b> — the whole structure rotates through the 4th dimension and the cells <b>trade places</b>: the centre cube flies out into a tunnel and another cell takes its spot. On touch, <b>press-and-hold</b> a cell instead (more in the next step). Still just your viewpoint — and it\'s how you find the hidden cell. Try it!',
+    id: 'shape-4', ch: 0, title: 'Find the hidden cell', art: 'center',
+    text: 'One cell is always culled from the picture — the one facing the 4D camera — so you can see inside the structure. Right now that is the <b>red Outer cell</b>. A hidden cell can\'t be clicked, so first rotate through 4D until red stickers appear, then centre them. While solving you will do this constantly: <i>no cell is ever really gone</i>.',
+    hint: 'Shift+drag slowly in one direction and watch for red stickers. The moment they appear, Ctrl+click (or press-and-hold) one of them.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Bring the hidden red Outer cell to the centre', on: ['rot4d', 'orbit', 'viewChange'], check: () => cellAtCenter(W, 1) },
+    ],
+    doneText: 'The red Outer cell — normally wrapped invisibly around everything — now sits politely in the middle. Nothing in 4D can hide from you anymore.',
+  },
+
+  // ===== Chapter 2 · The Pieces ==============================================
+  {
+    id: 'pieces-1', ch: 1, title: 'Piece safari', art: 'pieces',
+    text: 'Each cell is a 3×3×3 of blocks, and every block is a <b>piece</b> shared between cells. Four kinds exist:<br>· <b>8 centre pieces</b> (1 colour) — they never move and define each cell\'s colour;<br>· <b>24 face pieces</b> (2 colours);<br>· <b>32 edge pieces</b> (3 colours);<br>· <b>16 corner pieces</b> (4 colours).<br>80 moving pieces, about <b>1.8×10<sup>120</sup></b> positions. Click stickers to select pieces — bag all four kinds, in order.',
+    hint: 'A cell\'s centre piece is the middle block of its 3×3×3. The 4-colour pieces are the eight outer corners of each cell.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Select a 1-colour centre piece', on: 'select', when: (i) => i.piece && i.piece.stickers.length === 1 },
+      { text: 'Select a 2-colour face piece', on: 'select', when: (i) => i.piece && i.piece.stickers.length === 2 },
+      { text: 'Select a 3-colour edge piece', on: 'select', when: (i) => i.piece && i.piece.stickers.length === 3 },
+      { text: 'Select a 4-colour corner piece', on: 'select', when: (i) => i.piece && i.piece.stickers.length === 4 },
+    ],
+    doneText: 'These four families never mix — a 2-colour piece stays a 2-colour piece forever. The solving method will tame them family by family.',
   },
   {
-    ch: 'Chapter 1 · The shape',
-    title: 'Bring any cell to the centre',
-    detect: 'center',
-    art: TUT_ART.center,
-    text: '<b>Ctrl+click</b> a cell — or <b>press and hold</b> it — and it spins straight into the middle. While solving you\'ll do this constantly: centre the cell you\'re working on. Try it on any cell!',
-  },
-  // ---- chapter 2: the pieces ------------------------------------------------
-  {
-    ch: 'Chapter 2 · The pieces',
-    title: 'Four kinds of pieces',
-    art: TUT_ART.pieces,
-    text: 'Each cell is a 3×3×3 of blocks, and every block is a piece shared between cells:<br>· <b>8 centre pieces</b> (1 colour) — one per cell, they <i>never move</i> and define each cell\'s colour;<br>· <b>24 face pieces</b> (2 colours);<br>· <b>32 edge pieces</b> (3 colours);<br>· <b>16 corner pieces</b> (4 colours).<br>That\'s 80 moving pieces and about <b>1.8&times;10<sup>120</sup></b> positions — the 3D cube\'s 4.3&times;10<sup>19</sup> is a rounding error next to it.',
+    id: 'pieces-2', ch: 1, title: 'Your first twist', art: 'twist',
+    text: '<b>Click a sticker</b> to select its cell — it lights up and the twist panel opens. Press one of the <b>↺ / ↻</b> buttons: the whole cell, all 27 blocks, rotates 90° in one of <b>three planes</b>. (A 3D face has only one twist plane; the two extra planes are the 4th dimension talking.) Watch the boundary blocks <b>hop into the neighbouring cells</b> — that hop is how pieces travel.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Twist any cell 90° with the panel buttons', on: 'twist', when: (i) => i.mv.mode === 'plane' },
+      { text: 'Press Undo (or U) to take it back', on: 'undo' },
+    ],
+    doneText: 'Twist and undo — action and eraser. While learning, undo freely: exploring and rewinding is exactly how intuition is built.',
   },
   {
-    ch: 'Chapter 2 · The pieces',
-    title: 'Select, then twist',
-    detect: 'twist',
-    art: TUT_ART.twist,
-    text: '<b>Click any sticker</b> — its cell lights up and the <b>twist panel</b> opens. Now press one of the <b>↺ / ↻ buttons</b>: the whole cell (all 27 blocks) rotates, and the pieces it shares with its six neighbours <b>hop between cells</b>. That hop is how pieces travel. Select a cell and twist it now!',
+    id: 'pieces-3', ch: 1, title: 'The three grips', art: 'grips',
+    text: '<b>Which block</b> you click matters. A face block offers the three 90° plane turns. An <b>edge block</b> adds a <b>180° flip</b> about its diagonal; a <b>corner block</b> adds a <b>120° spin</b>. These grips are shortcuts — each equals some combination of 90° turns — but they make many solving sequences far shorter.',
+    hint: 'Edge blocks sit between two face centres of a cell; corner blocks are its eight outermost blocks. Select one and the extra grip row appears in the panel.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Select an edge block and flip it 180°', on: 'twistAxis', when: (i) => Math.abs(i.mv.theta) > 2.2 },
+      { text: 'Select a corner block and spin it 120°', on: 'twistAxis', when: (i) => Math.abs(i.mv.theta) < 2.2 },
+      { text: 'Undo both grips', on: 'undo', count: 2 },
+    ],
+    doneText: 'The full arsenal: three plane turns per cell plus edge and corner grips — and you command them all.',
   },
   {
-    ch: 'Chapter 2 · The pieces',
-    title: 'The three grips',
-    detect: 'twistAxis',
-    art: TUT_ART.grips,
-    text: '<b>Which block</b> you select matters. A <b>face block</b> offers the three 90° plane turns — but select an <b>edge block</b> and the panel adds a <b>180° flip</b>, or a <b>corner block</b> for a <b>120° spin</b> about its diagonal. Select an edge or corner block (anything that isn\'t a face centre) and press its grip button now!',
+    id: 'pieces-4', ch: 1, title: 'Four quarters make a whole', art: 'twist',
+    text: 'Every 90° twist has <b>order four</b>: repeat it four times and every piece returns exactly home. So no twist is ever destructive — and three forward always equals one back. The cube starts solved; prove the rule yourself.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Twist the same cell, same plane, same direction 4× in a row', on: 'moved',
+        when: (i) => i.record && lastMovesIdentical(4) && isSolved() },
+    ],
+    doneText: 'Back to solved, exactly as the algebra promises. Undo is still faster — but knowing why both work is the real prize.',
+  },
+
+  // ===== Chapter 3 · Detective School ========================================
+  {
+    id: 'detect-1', ch: 2, title: 'One twist from home', art: 'dice1',
+    text: 'The cube has been scrambled with <b>one hidden twist</b>. Find it and reverse it. Detective work: rotate through 4D and centre cells to inspect them — a twist leaves <b>foreign stickers</b> on several neighbouring cells at once. Wrong guess? <b>Undo</b> is free.',
+    hint: 'Look for a cell where a whole layer of strangers arrived, select a block in that layer, and try the opposite twist: same plane, other arrow.',
+    enter: () => levelScramble(1),
+    objs: () => [
+      { text: 'Restore every cell to a single colour', on: 'moved', check: isSolved },
+    ],
+    doneText: 'Your first real solve! That visual hunt — which cells are wounded, which slab moved — is the core skill of all 4D solving.',
   },
   {
-    ch: 'Chapter 2 · The pieces',
-    title: 'Undo',
-    detect: 'undo',
-    art: TUT_ART.undo,
-    text: 'Press <b>Undo</b> (or <b>U</b>) to take your twist back — it remembers grips too. While learning, undo freely: exploring and rewinding is exactly how you build intuition. Try it!',
-  },
-  // ---- chapter 3: the core skill --------------------------------------------
-  {
-    ch: 'Chapter 3 · The core skill',
-    title: 'The commutator',
-    art: TUT_ART.comm,
-    text: 'Nearly every solving sequence on any twisty puzzle is a <b>commutator</b>: do <b>A</b>, do <b>B</b>, <b>undo A</b>, <b>undo B</b>. If A and B barely overlap, almost everything comes back — the net effect touches <i>just a few pieces</i>. That\'s how you move one piece <b>without wrecking what you\'ve already solved</b>.',
+    id: 'detect-2', ch: 2, title: 'Two twists deep', art: 'dice2',
+    text: 'Now <b>two hidden twists</b>. Reverse them in opposite order: undo the <i>most recent</i> damage first, then the older one — like backing out of a corridor. If the picture overwhelms you, centre one damaged cell and deal with it alone.',
+    hint: 'The two twists may overlap. If your first reversal makes things look worse, Undo it and try the other order.',
+    enter: () => levelScramble(2),
+    objs: () => [
+      { text: 'Restore the cube', on: 'moved', check: isSolved },
+    ],
+    doneText: 'Last in, first out — you just ran a two-move inverse replay entirely in your head.',
   },
   {
-    ch: 'Chapter 3 · The core skill',
-    title: 'Try a commutator',
-    detect: 'twist',
-    count: 4,
-    art: TUT_ART.comm,
-    text: 'Do it for real: select a cell and <b>twist it</b> (A), twist a <i>different</i> cell (B), then select the first cell again and press the <b>opposite arrow</b> (A′), and likewise undo B (B′). Four twists — then study how few stickers actually changed. This pattern, plus patience, solves the whole puzzle.',
-  },
-  // ---- chapter 4: the method ------------------------------------------------
-  {
-    ch: 'Chapter 4 · The method',
-    title: 'The plan: three waves',
-    art: TUT_ART.waves,
-    text: 'The proven route (Roice Nelson\'s <i>Ultimate Solution to a 3&times;3&times;3&times;3</i>, and the modern methods at hypercubing.xyz) solves the piece types in waves, easiest to hardest:<br><b>Wave 1</b> — all 24 two-colour pieces;<br><b>Wave 2</b> — all 32 three-colour pieces;<br><b>Wave 3</b> — all 16 four-colour pieces.<br>Each wave reuses a skill from the 3D cube, one dimension up.',
+    id: 'detect-3', ch: 2, title: 'Three twists deep', art: 'dice3',
+    text: '<b>Three hidden twists</b> — a genuine micro-solve. Use the full toolkit: orbit, 4D rotation, centring, careful observation and fearless Undo. There is no clock pressure in this course; careful beats fast, every time.',
+    hint: 'Peel it like an onion: find the most superficial damage (often the cell with the most foreign stickers), undo it, then reassess the whole cube.',
+    enter: () => levelScramble(3),
+    objs: () => [
+      { text: 'Restore the cube', on: 'moved', check: isSolved },
+    ],
+    doneText: 'Three-deep reading is exactly the skill that scales — a full scramble is just "many twists deep".',
   },
   {
-    ch: 'Chapter 4 · The method',
-    title: 'Wave 1 — two-colour pieces',
-    art: TUT_ART.wave1,
-    text: '2-colour pieces behave like the <b>edges of a 3D cube</b>. Each cell owns six of them (its face blocks). Pick a colour, <b>centre that cell</b>, and ferry its six pieces home with short twist sequences — like building the cross on a 3D cube, six times… for eight cells. It\'s long, not hard: at this stage you can still twist fairly freely, so this wave teaches you to <i>see</i> in 4D.',
+    id: 'detect-4', ch: 2, title: 'The twisted grip', art: 'grips',
+    text: 'This scramble used a <b>90° twist plus a 180° edge flip</b>. Grip damage looks different: an edge flip trades stickers in pairs, so look for <b>two colours swapped between two cells</b>. Useful fact: a 180° flip is its own inverse — find the right edge block and flip it once.',
+    hint: 'First undo whichever damage looks like a plain layer move; then hunt the swapped pairs and press the 180° button on the edge block between the two trading cells.',
+    enter: () => levelSetup(() => {
+      const d = (Math.random() * 4) | 0, sd = Math.random() < 0.5 ? 1 : -1;
+      const [i, j] = planesFor(d)[(Math.random() * 3) | 0];
+      commitTwist(d, sd, i, j, Math.random() < 0.5 ? 1 : -1);
+      let d2, sd2;
+      do { d2 = (Math.random() * 4) | 0; sd2 = Math.random() < 0.5 ? 1 : -1; } while (d2 === d && sd2 === sd);
+      const inAx = [0, 1, 2, 3].filter(a => a !== d2);
+      const dirs = [[1, 1, 0], [1, -1, 0], [1, 0, 1], [1, 0, -1], [0, 1, 1], [0, 1, -1]];
+      const u = dirs[(Math.random() * 6) | 0], n = Math.hypot(...u);
+      commitTwistAxis(d2, sd2, inAx, u.map(x => x / n), Math.PI);
+    }),
+    objs: () => [
+      { text: 'Restore the cube', on: 'moved', check: isSolved },
+    ],
+    doneText: 'Detective School: passed. You can read any small wound on the hypercube. Time to learn surgery.',
+  },
+
+  // ===== Chapter 4 · The Commutator Lab ======================================
+  {
+    id: 'comm-1', ch: 3, title: 'The magic four: A B A′ B′', art: 'comm',
+    text: 'From here on you must move pieces <b>without wrecking solved work</b>. The universal tool is the <b>commutator</b>: do a twist <b>A</b>, a twist <b>B</b> on a different cell, then <b>undo A by hand</b> (same cell &amp; plane, opposite arrow — not the Undo button!) and <b>undo B</b>. Where A and B barely overlap, almost everything returns — the net effect touches only a few pieces.',
+    hint: 'A′ means: select the first cell again, find the same plane row in the panel, press the other arrow.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'A — twist any cell', on: 'twist',
+        when: (i) => { course.data.A = i.mv; return true; } },
+      { text: 'B — twist a different cell', on: 'twist',
+        when: (i) => { if (sameCellMove(i.mv, course.data.A)) return false; course.data.B = i.mv; return true; } },
+      { text: 'A′ — reverse your first twist by hand', on: 'twist',
+        when: (i) => isInverseMove(i.mv, course.data.A) },
+      { text: 'B′ — reverse your second twist', on: 'twist',
+        when: (i) => isInverseMove(i.mv, course.data.B) },
+    ],
+    doneText: () => {
+      const n = displacedPieces().length;
+      return n === 0
+        ? 'Everything came back — your A and B cells didn\'t overlap at all, so the commutator was pure air. Pick two neighbouring cells and the net effect touches just a few pieces. Replay the level and see!'
+        : `Count the wounds: only ${n} of the 80 pieces moved — every other piece came home on its own. That is surgical precision, and it scales to every twisty puzzle ever made.`;
+    },
   },
   {
-    ch: 'Chapter 4 · The method',
-    title: 'Wave 2 — three-colour pieces',
-    art: TUT_ART.wave2,
-    text: '3-colour pieces play the role of <b>3D-cube corners</b>. Place them with <b>three-cycles</b>: commutator-built series that swap exactly three pieces and leave <i>everything</i> else untouched. Work cell by cell, and always twist so that solved regions return home by the end of each series. When a sequence goes wrong: <b>Undo</b> back and re-think — never push on blindly.',
+    id: 'comm-2', ch: 3, title: 'Spot the damage', art: 'comm',
+    text: 'A commutator has just been applied to a solved cube (A on the <b>Top</b> cell, B on the <b>Right</b> cell). Your job: <b>find every displaced piece</b> and click it. Inspect from all sides — centre the Top and Right cells and study where their slabs overlap. Locating damage precisely is how you will plan three-cycles later.',
+    hint: 'All damage lives where the Top and Right slabs intersect. Centre the Top cell and look for strangers; then centre the Right cell and finish the list.',
+    enter: () => {
+      levelSetup(() => LAB_COMM.forEach(commitMove));
+      resetView();
+      course.data.targets = displacedPieces();
+      course.data.found = new Set();
+    },
+    objs: () => [
+      { text: `Click every displaced piece (${course.data.targets.length} to find)`,
+        on: 'select', count: course.data.targets.length,
+        when: (i) => {
+          if (!i.piece || course.data.found.has(i.piece) || !course.data.targets.includes(i.piece)) return false;
+          course.data.found.add(i.piece);
+          return true;
+        } },
+    ],
+    doneText: 'Every casualty located. Notice the pattern: a commutator\'s footprint is small, local — and therefore predictable.',
   },
   {
-    ch: 'Chapter 4 · The method',
-    title: 'Wave 3 — the RKT trick',
-    art: TUT_ART.rkt,
-    text: 'The famous finish for the last 16 corner pieces: <b>centre the last unsolved cell</b> and treat that centre cube as an <b>ordinary 3D Rubik\'s cube</b>. Twisting the cells <i>around</i> it acts exactly like face turns on it — so every 3D algorithm you know can be executed on the 4D cube. This technique is called <b>RKT</b>, and it turns the scariest phase into familiar territory.',
+    id: 'comm-3', ch: 3, title: 'Rewind the machine', art: 'undo',
+    text: 'Watch the demo: a commutator performed before your eyes — <b>A</b> = Top cell, plane XZ ↻ · <b>B</b> = Right cell, plane ZW ↻ · then A′, B′. Now <b>undo it by hand</b>. The inverse of A B A′ B′ is <b>B A B′ A′</b>: replay it backwards, inverting each move. The Undo button won\'t help — the demo left no history. (Restart replays the demo.)',
+    hint: 'Do, in order: Right cell · plane ZW · ↻, then Top cell · plane XZ · ↻, then Right cell · plane ZW · ↺, then Top cell · plane XZ · ↺.',
+    enter: () => {
+      levelSetup();
+      resetView();
+      playDemo(LAB_COMM);
+    },
+    objs: () => [
+      { text: 'Watch the demo', on: 'demoDone' },
+      { text: 'Restore the cube by inverting the commutator', on: 'moved', check: isSolved },
+    ],
+    doneText: 'You just inverted a four-move machine from memory. Commutators are not spells — they are sentences you can read in both directions.',
   },
   {
-    ch: 'Chapter 4 · The method',
-    title: 'Field notes',
-    text: 'Honest expectations: a first full solve usually takes <b>several hundred twists</b> over multiple sittings — and completing one at all is a genuine badge of honour (MagicCube4D keeps a Hall of Fame for it). Three rules of thumb:<br>· finish each wave <i>completely</i> before the next;<br>· rotate the <b>view</b>, never destroy solved work to "see better";<br>· the move counter doesn\'t judge — <b>Undo</b> is free.',
+    id: 'comm-4', ch: 3, title: 'The setup move: A B A′', art: 'comm',
+    text: 'The commutator\'s little sibling is the <b>conjugate</b>: A B A′. Here A is a <b>setup move</b> — it carries an awkward piece into a position the useful move B can reach, and A′ carries the stage back. Read it as <i>"shift the world, act, shift it back"</i>. Conjugates and commutators together generate every solving sequence you will ever need.',
+    hint: 'Three moves: any twist, a different cell\'s twist, then the exact inverse of your first twist.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'A — twist any cell (the setup)', on: 'twist',
+        when: (i) => { course.data.A = i.mv; return true; } },
+      { text: 'B — twist a different cell (the action)', on: 'twist',
+        when: (i) => !sameCellMove(i.mv, course.data.A) },
+      { text: 'A′ — undo the setup by hand', on: 'twist',
+        when: (i) => isInverseMove(i.mv, course.data.A) },
+    ],
+    doneText: 'The net effect is "B, performed somewhere B could never reach". Lab complete — you now hold the only two tools the method needs.',
   },
-  // ---- chapter 5: practice ---------------------------------------------------
+
+  // ===== Chapter 5 · The Method · Wave 1 =====================================
   {
-    ch: 'Chapter 5 · Practice',
-    title: 'Solve: one twist',
-    detect: 'solved',
-    onEnter: () => doScramble(1),
-    art: TUT_ART.dice1,
-    text: 'We scrambled the cube with <b>one twist</b>. Hunt down the disturbed cells (4D-rotate or ctrl-click to inspect!), then select the moved block and turn it back with the panel. Wrong guess? <b>Undo</b> and try the opposite arrow or a different grip.',
-  },
-  {
-    ch: 'Chapter 5 · Practice',
-    title: 'Solve: two twists',
-    detect: 'solved',
-    onEnter: () => doScramble(2),
-    art: TUT_ART.dice2,
-    text: 'Now <b>two twists</b>. Reverse them in opposite order: fix the <i>most recent</i> damage first, then the older one. If the picture confuses you, centre a damaged cell and study which stickers are strangers.',
-  },
-  {
-    ch: 'Chapter 5 · Practice',
-    title: 'Solve: three twists',
-    detect: 'solved',
-    onEnter: () => doScramble(3),
-    art: TUT_ART.dice3,
-    text: 'Final exam: <b>three twists</b> — a real micro-solve. Use everything: orbit, 4D rotation, centring, the grips, and Undo. There\'s no rush; careful beats fast.',
+    id: 'method-0', ch: 4, title: 'The plan: three waves', art: 'waves',
+    text: 'Time for the real method — the route proven by Roice Nelson\'s <i>Ultimate Solution to a 3×3×3×3</i> and the modern guides at <i>hypercubing.xyz</i>. Solve the piece families in waves, easiest first:<br><b>Wave 1</b> — all 24 two-colour pieces;<br><b>Wave 2</b> — all 32 three-colour pieces;<br><b>Wave 3</b> — all 16 four-colour pieces, via the RKT trick.<br>Finish each wave <i>completely</i> before starting the next. Point out the three families to lock in the plan.',
+    enter: () => { levelSetup(); resetView(); },
+    objs: () => [
+      { text: 'Select a 2-colour piece — Wave 1\'s targets', on: 'select', when: (i) => i.piece && i.piece.stickers.length === 2 },
+      { text: 'Select a 3-colour piece — Wave 2\'s targets', on: 'select', when: (i) => i.piece && i.piece.stickers.length === 3 },
+      { text: 'Select a 4-colour piece — Wave 3\'s targets', on: 'select', when: (i) => i.piece && i.piece.stickers.length === 4 },
+    ],
+    doneText: 'Briefing complete. From the next level on, the grader watches exactly one wave at a time.',
   },
   {
-    ch: 'Chapter 5 · Practice',
-    title: 'You\'re a hypercubist now',
-    art: TUT_ART.done,
-    text: 'You know the shape, the pieces, the commutator and the three-wave method. Press <b>Scramble</b> (S) and begin Wave 1. For deeper study: <i>superliminal.com/cube</i> (the Ultimate Solution, sequence by sequence) and <i>hypercubing.xyz</i> (modern methods, RKT, community). Good luck!',
+    id: 'wave1-1', ch: 4, title: 'Wave 1: faces first', art: 'wave1',
+    text: 'The 24 <b>two-colour pieces</b> play the role of a 3D cube\'s edges. Each cell owns six of them (its face blocks). In this level only <b>Wave 1 is graded</b>: bring every 2-colour piece home; whatever happens to the 3- and 4-colour pieces is ignored. Early in a solve you can still twist quite freely — use that freedom.',
+    hint: 'A 2-colour piece is home when both stickers sit on their own colour\'s cell. Pick one colour, centre that cell, repair its six face blocks, then take the next cell.',
+    enter: () => levelScramble(2),
+    objs: () => [
+      { text: 'Bring all 24 two-colour pieces home (others may stay wild)', on: 'moved', check: () => waveSolved(2) },
+    ],
+    doneText: 'Wave 1 clear! The leftover chaos among the bigger pieces is tomorrow\'s problem — in a real solve you would now protect this work with commutators.',
+  },
+  {
+    id: 'wave1-2', ch: 4, title: 'Wave 1: deeper water', art: 'wave1',
+    text: 'Same wave, rougher sea: a <b>four-twist scramble</b>. Bring all 24 two-colour pieces home. Strategy over reflexes: pick a colour, centre its cell, ferry its six face blocks home with short sequences, take the next cell. Rotate the <b>view</b> to see better — never destroy solved work for a better look.',
+    hint: 'Don\'t chase single pieces across the whole hypercube. Fix one cell, then never twist it carelessly again — or restore it afterwards with A B A′ B′.',
+    enter: () => levelScramble(4),
+    objs: () => [
+      { text: 'Bring all 24 two-colour pieces home', on: 'moved', check: () => waveSolved(2) },
+    ],
+    doneText: 'That was real Wave-1 work: planning, centring, short sequences. On a full scramble this wave is longer — but never harder.',
+  },
+
+  // ===== Chapter 6 · The Method · Wave 2 =====================================
+  {
+    id: 'wave2-1', ch: 5, title: 'Wave 2: the three-cycle', art: 'wave2',
+    text: 'The 32 <b>three-colour pieces</b> take the role of a 3D cube\'s corners. With Wave 1 standing, free twisting is over: place them with <b>commutator-built three-cycles</b> — sequences that cycle a few pieces and put everything else back, exactly as you practised in the Lab. This level grades Waves 1 <b>and</b> 2: all 2- and 3-colour pieces home; 4-colour pieces remain free.',
+    hint: 'After every sequence, check your 2-colour pieces. If they broke, Undo back — a good sequence leaves them untouched by construction.',
+    enter: () => levelScramble(2),
+    objs: () => [
+      { text: 'All 2- and 3-colour pieces home (4-colour may stay wild)', on: 'moved', check: () => waveSolved(3) },
+    ],
+    doneText: 'Two waves standing. Feel the discipline change? From here on, every move must justify what it breaks.',
+  },
+  {
+    id: 'wave2-2', ch: 5, title: 'Wave 2: full repair', art: 'wave2',
+    text: 'A <b>three-twist scramble</b>, graded through Wave 2. Work cell by cell. When a piece sits "almost right", remember the grips — a single 180° edge flip or 120° corner spin sometimes does what three plane twists would. And when a plan goes wrong: <b>Undo back and re-think</b>. Never push on blindly.',
+    hint: 'A 3-colour piece is only home when all three stickers match their cells — check all three before you move on.',
+    enter: () => levelScramble(3),
+    objs: () => [
+      { text: 'All 2- and 3-colour pieces home', on: 'moved', check: () => waveSolved(3) },
+    ],
+    doneText: 'Wave 2 mastered. Only the sixteen 4-colour corners remain — and for those, a famous trick awaits.',
+  },
+
+  // ===== Chapter 7 · The Method · Wave 3 + RKT ===============================
+  {
+    id: 'rkt-1', ch: 6, title: 'RKT: a 3D cube in disguise', art: 'rkt',
+    text: 'The endgame trick of every hypercubist — <b>RKT</b>: centre the last unsolved cell and look at the small middle cube. It <i>is</i> a 3D Rubik\'s cube. Twisting the cells <b>around</b> it acts on it exactly like face turns act on a normal cube, so <b>every 3D algorithm you know can be executed here</b>. First, set the stage yourself.',
+    hint: 'The white Inner cell may be hiding — Shift+drag until white appears, then Ctrl+click / hold it. Then select any tunnel cell and twist, watching the white cube.',
+    enter: () => {
+      levelSetup();
+      // park the view with a tunnel cell centred, so centring white is a real task
+      view4 = rotBetween([1, 0, 0, 0], [0, 0, 0, -1], 1);
+      yaw = -0.785; pitch = 0.615; zoom = 1.0; panX = 0; panY = 0;
+      view3 = mat3FromYawPitch(yaw, pitch);
+    },
+    objs: () => [
+      { text: 'Centre the white Inner cell', on: ['center', 'rot4d', 'orbit', 'viewChange'], check: () => cellAtCenter(W, -1) },
+      { text: 'With white centred, twist 3 surrounding cells — watch its faces turn', on: 'twist',
+        count: 3, when: (i) => !(i.mv.d === W && i.mv.sd === -1) && cellAtCenter(W, -1) },
+    ],
+    doneText: 'Those twists turned the white cube\'s faces exactly like F, U and R turns on a 3D cube. In Wave 3 you solve the last cell precisely this way — with your favourite 3D algorithms, played one dimension up.',
+  },
+  {
+    id: 'rkt-2', ch: 6, title: 'Full solve: two twists', art: 'dice2',
+    text: 'Everything is graded now — <b>all 80 pieces</b>, including the 4-colour corners. A two-twist scramble: read it, plan it, reverse it. Use the waves if the damage is wide, or pure detective work if it is narrow.',
+    enter: () => levelScramble(2),
+    objs: () => [
+      { text: 'Solve the cube completely', on: 'moved', check: isSolved },
+    ],
+    doneText: 'A complete solve, corners and all. The full method is now in your hands.',
+  },
+  {
+    id: 'rkt-3', ch: 6, title: 'Full solve: three twists', art: 'dice3',
+    text: 'Three twists, fully graded. This is where the course stops holding your hand — and notice that it no longer needs to: you read the projection, command every grip, wield commutators and know the wave plan by heart.',
+    enter: () => levelScramble(3),
+    objs: () => [
+      { text: 'Solve the cube completely', on: 'moved', check: isSolved },
+    ],
+    doneText: 'Flawless. One final exam stands between you and the title.',
+  },
+
+  // ===== Chapter 8 · Graduation ==============================================
+  {
+    id: 'grad-1', ch: 7, title: 'Final exam', art: 'done',
+    text: 'A <b>five-twist scramble</b>, completely graded, no guidance. Take your time — careful beats fast, and Undo costs nothing. For deeper study while (and after) you work: <i>superliminal.com/cube</i> hosts the Ultimate Solution sequence by sequence, and <i>hypercubing.xyz</i> the modern methods and the RKT playbook. A first <b>full</b>-scramble solve usually takes several hundred twists across multiple sittings — and is a genuine badge of honour.',
+    hint: 'The wave plan: 2-colour pieces → 3-colour pieces → RKT for the corners. Or out-detective it — five twists can still be read backwards.',
+    enter: () => levelScramble(5),
+    objs: () => [
+      { text: 'Solve the cube completely', on: 'moved', check: isSolved },
+    ],
+    doneText: 'Graduated — you are a hypercubist now. 🎓 Press Scramble (S) whenever you are ready for the real thing, and may all eight cells come home.',
   },
 ];
-const tutorial = { active: false, step: 0, done: false, advT: null, hits: 0 };
 
-function startTutorial() {
-  hide(el.help); hide(el.win);
+// --- course engine -------------------------------------------------------------
+const PROG_KEY = 'tess_course_v1';
+function loadProgress() {
+  try { return new Set(JSON.parse(localStorage.getItem(PROG_KEY) || '[]')); } catch (_) { return new Set(); }
+}
+const course = { active: false, idx: 0, objs: [], obj: 0, seq: [], data: {}, done: loadProgress(), complete: false };
+function saveProgress() { try { localStorage.setItem(PROG_KEY, JSON.stringify([...course.done])); } catch (_) {} }
+function levelUnlocked(i) { return i === 0 || course.done.has(LEVELS[i - 1].id); }
+function firstOpenLevel() {
+  const i = LEVELS.findIndex(lv => !course.done.has(lv.id));
+  return i === -1 ? LEVELS.length - 1 : i;
+}
+
+function startLevel(i) {
+  hide(el.map); hide(el.help); hide(el.win);
+  course.active = true;
+  course.idx = i;
+  course.obj = 0;
+  course.seq = [];
+  course.data = {};
+  course.complete = false;
+  const lv = LEVELS[i];
+  lv.enter();
+  course.objs = lv.objs().map(o => ({ ...o, hits: 0, keys: new Set() }));
+  renderLevel();
+  show(el.course);
+}
+function exitCourse() {
+  if (!course.active && el.course.hidden) return;
+  course.active = false;
+  stopDemo();
+  hide(el.course);
   doReset();
-  tutorial.active = true;
-  show(el.tutorial);
-  tutorialGoto(0);
-  toast('Tutorial started');
 }
-function exitTutorial() {
-  if (!tutorial.active) return;
-  tutorial.active = false;
-  clearTimeout(tutorial.advT);
-  hide(el.tutorial);
-  doReset();
-}
-function tutorialGoto(n) {
-  clearTimeout(tutorial.advT);
-  tutorial.step = n;
-  tutorial.done = false;
-  tutorial.hits = 0;
-  const st = TUT_STEPS[n];
-  el.tutChapter.textContent = st.ch;
-  el.tutTitle.textContent = st.title;
-  el.tutArt.innerHTML = st.art || '';
-  el.tutArt.hidden = !st.art;
-  el.tutText.innerHTML = st.text;
-  el.tutCheck.hidden = true;
-  el.tutCheck.textContent = '✓ Nice!';
-  el.tutPrev.disabled = n === 0;
-  // steps that wait for an action label the forward button "Skip" until done
-  el.tutNext.textContent = n === TUT_STEPS.length - 1 ? 'Finish' : (st.detect ? 'Skip' : 'Next');
-  el.tutProgress.innerHTML = TUT_STEPS
-    .map((_, i) => `<i class="${i < n ? 'past' : i === n ? 'now' : ''}"></i>`)
-    .join('');
-  if (st.onEnter) st.onEnter();
-}
-function tutorialNext() {
-  clearTimeout(tutorial.advT);
-  if (tutorial.step >= TUT_STEPS.length - 1) { exitTutorial(); toast('Tutorial complete — have fun!'); return; }
-  tutorialGoto(tutorial.step + 1);
-}
-function tutorialEvent(type) {
-  if (!tutorial.active || tutorial.done) return;
-  const st = TUT_STEPS[tutorial.step];
-  const match = Array.isArray(st.detect) ? st.detect.includes(type) : st.detect === type;
-  if (!match) return;
-  if (st.count && ++tutorial.hits < st.count) {   // multi-action step: show progress
-    el.tutCheck.textContent = `${tutorial.hits} / ${st.count}`;
-    el.tutCheck.hidden = false;
-    return;
+
+// every engine hook funnels through here; the current objective decides
+// whether the event (or the puzzle state it produced) completes it
+function courseEvent(type, info = {}) {
+  if (!course.active || course.complete) return;
+  if (demo && type !== 'demoDone') return;        // demo moves never score
+  if (type === 'moved' && info.record) course.seq.push(info.mv);
+  const o = course.objs[course.obj];
+  if (!o) return;
+  const onList = o.on ? [].concat(o.on) : null;
+  if (onList && !onList.includes(type)) return;
+  if (o.check) {
+    if (!o.check()) return;
+  } else {
+    if (o.when && !o.when(info)) return;
+    if (o.key) o.keys.add(o.key(info)); else o.hits++;
+    const got = Math.max(o.hits, o.keys.size);
+    if (got < (o.count || 1)) { renderObjectives(); flashCheck(`${got} / ${o.count}`); return; }
   }
-  tutorial.done = true;
-  el.tutCheck.textContent = '✓ Nice!';
-  el.tutCheck.hidden = false;
-  el.tutNext.textContent = tutorial.step === TUT_STEPS.length - 1 ? 'Finish' : 'Next';
-  tutorial.advT = setTimeout(tutorialNext, 1400);
+  course.obj++;
+  renderObjectives();
+  if (course.obj >= course.objs.length) completeLevel();
+  else flashCheck('✓ Nice!');
+}
+
+function completeLevel() {
+  const lv = LEVELS[course.idx];
+  course.complete = true;
+  if (!course.done.has(lv.id)) { course.done.add(lv.id); saveProgress(); }
+  clearTimeout(crsCheckT);
+  el.crsCheck.hidden = true;
+  el.course.classList.add('complete');
+  const dt = typeof lv.doneText === 'function' ? lv.doneText() : (lv.doneText || 'Level complete!');
+  el.crsText.innerHTML = `<b class="crs-done-tag">✓ Level complete</b><br>${dt}`;
+  el.crsHintBtn.hidden = true;
+  el.crsHint.hidden = true;
+  el.crsRestart.hidden = true;
+  el.crsNext.hidden = false;
+  el.crsNext.textContent = course.idx === LEVELS.length - 1 ? 'Finish course' : 'Next level';
+  toast('Level complete!');
+}
+
+// --- course UI -----------------------------------------------------------------
+function renderLevel() {
+  const lv = LEVELS[course.idx];
+  el.crsTag.textContent = `Level ${course.idx + 1} / ${LEVELS.length} · ${CHAPTERS[lv.ch]}`;
+  el.crsTitle.textContent = lv.title;
+  el.crsArt.innerHTML = lv.art ? ART[lv.art] : '';
+  el.crsArt.hidden = !lv.art;
+  el.crsText.innerHTML = lv.text;
+  el.crsHintBtn.hidden = !lv.hint;
+  el.crsHintBtn.textContent = 'Show hint';
+  el.crsHint.hidden = true;
+  el.crsHint.innerHTML = lv.hint || '';
+  el.crsCheck.hidden = true;
+  el.crsNext.hidden = true;
+  el.crsRestart.hidden = false;
+  el.course.classList.remove('complete');
+  renderObjectives();
+}
+function renderObjectives() {
+  el.crsObjs.innerHTML = course.objs.map((o, i) => {
+    const state = i < course.obj ? 'done' : (i === course.obj && !course.complete) ? 'now' : 'todo';
+    const got = Math.max(o.hits, o.keys.size);
+    const prog = state === 'now' && (o.count || 1) > 1 && got > 0 ? ` <em>${got} / ${o.count}</em>` : '';
+    return `<li class="${state}"><i></i><span>${o.text}${prog}</span></li>`;
+  }).join('');
+}
+let crsCheckT = null;
+function flashCheck(msg) {
+  el.crsCheck.textContent = msg;
+  el.crsCheck.hidden = false;
+  clearTimeout(crsCheckT);
+  crsCheckT = setTimeout(() => { el.crsCheck.hidden = true; }, 1600);
+}
+
+function openMap() {
+  if (course.active) { course.active = false; stopDemo(); hide(el.course); doReset(); }
+  hide(el.help); hide(el.win);
+  renderMap();
+  show(el.map);
+}
+const MAP_ICON = {
+  done: '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  open: '<svg viewBox="0 0 24 24"><path d="M8 5l10 7-10 7z" fill="currentColor"/></svg>',
+  locked: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+};
+function renderMap() {
+  const total = LEVELS.length;
+  const done = LEVELS.filter(lv => course.done.has(lv.id)).length;
+  el.mapProgress.textContent = `${done} / ${total} levels`;
+  el.mapBarFill.style.width = `${(done / total) * 100}%`;
+  el.mapGrad.hidden = done < total;
+  let html = '';
+  CHAPTERS.forEach((name, c) => {
+    html += `<div class="map-chapter"><h3><span>${c + 1}</span>${name}</h3><div class="map-levels">`;
+    LEVELS.forEach((lv, i) => {
+      if (lv.ch !== c) return;
+      const isDone = course.done.has(lv.id);
+      const unlocked = levelUnlocked(i);
+      const cls = isDone ? 'done' : unlocked ? 'open' : 'locked';
+      html += `<button class="map-level ${cls}" data-i="${i}"${unlocked ? '' : ' disabled'}>` +
+        `<span class="ml-num">${i + 1}</span><span class="ml-title">${lv.title}</span>` +
+        `<span class="ml-icon">${MAP_ICON[cls]}</span></button>`;
+    });
+    html += '</div></div>';
+  });
+  el.mapList.innerHTML = html;
+  el.mapList.querySelectorAll('.map-level:not(.locked)').forEach(btn => {
+    btn.addEventListener('click', () => startLevel(+btn.dataset.i));
+  });
 }
 
 // ----------------------------------------------------------------- selection
@@ -1031,6 +1437,7 @@ function selectCell(d, sd, hit) {
   selected = { d, sd, key, grip, piece };
   buildTwistRows();
   el.dock.dataset.empty = 'false';
+  courseEvent('select', { piece, d, sd, key });
 }
 function deselect() {
   selected = null;
@@ -1068,7 +1475,7 @@ function buildTwistRows() {
   }
   el.twistRows.querySelectorAll('.tw').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (anim) return;
+      if (anim || demo) return;
       if (btn.classList.contains('twa')) {
         startTwistAxis(selected.d, selected.sd, selected.grip.inAx, selected.grip.u3, +btn.dataset.theta);
       } else {
@@ -1165,6 +1572,7 @@ canvas.addEventListener('pointermove', (e) => {
       panY = pinch.my0 - cy - (pinch.my0 - cy - pinch.panY0) * f + (m.y - pinch.my0);
       zoom = z2;
       clampPan();
+      courseEvent('zoom');
     }
     return;
   }
@@ -1184,12 +1592,12 @@ canvas.addEventListener('pointermove', (e) => {
         // free 4D rotation, à la MagicCube4D's shift-drag: dx -> X-W plane, dy -> Y-W plane
         const d4 = matMul4(rotFloat(X, W, dx * ROT4D_SENS), rotFloat(Y, W, -dy * ROT4D_SENS));
         view4 = matMul4(d4, drag.base4);
-        tutorialEvent('rot4d');
+        courseEvent('rot4d');
       } else {
         yaw = drag.yaw0 + dx * 0.008;
         pitch = Math.max(-1.35, Math.min(1.35, drag.pitch0 + dy * 0.008));
         view3 = mat3FromYawPitch(yaw, pitch);
-        tutorialEvent('orbit');
+        courseEvent('orbit');
       }
     }
   } else if (pointers.size === 0) {
@@ -1250,6 +1658,7 @@ canvas.addEventListener('wheel', (e) => {
   panY = e.clientY - cy - (e.clientY - cy - panY) * f;
   zoom = z2;
   clampPan();
+  courseEvent('zoom');
 }, { passive: false });
 
 // right-click is "twist reverse"; stop the browser context menu from popping up
@@ -1259,14 +1668,24 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
-  if (k === 's') { doScramble(); }
+  if (k === 's') {
+    if (course.active) toast('Exit the Academy to scramble freely');
+    else doScramble();
+  }
   else if (k === 'u') { doUndo(); }
-  else if (k === 'r') { doReset(); }
+  else if (k === 'r') {
+    if (course.active) { startLevel(course.idx); toast('Level restarted'); }
+    else doReset();
+  }
   else if (k === 'v') { resetView(); }
-  else if (k === 't') { if (!tutorial.active) startTutorial(); }
+  else if (k === 't' || k === 'l') { el.map.hidden ? openMap() : hide(el.map); }
   else if (k === 'h' || k === '?') { toggle(el.help); }
-  else if (k === 'escape') { hide(el.help); hide(el.win); exitTutorial(); deselect(); }
-  else if (selected && ['1','2','3'].includes(k)) {
+  else if (k === 'escape') {
+    if (!el.map.hidden) hide(el.map);
+    else if (course.active) exitCourse();
+    hide(el.help); hide(el.win); deselect();
+  }
+  else if (selected && !demo && ['1','2','3'].includes(k)) {
     const planes = planesFor(selected.d);
     const [i, j] = planes[+k - 1];
     startTwist(selected.d, selected.sd, i, j, e.shiftKey ? 1 : -1);
@@ -1291,24 +1710,42 @@ const el = {
   winMoves: document.getElementById('win-moves'),
   winAgain: document.getElementById('win-again'),
   toast: document.getElementById('toast'),
-  tutorial: document.getElementById('tutorial'),
-  tutChapter: document.getElementById('tut-chapter'),
-  tutArt: document.getElementById('tut-art'),
-  tutTitle: document.getElementById('tut-title'),
-  tutText: document.getElementById('tut-text'),
-  tutCheck: document.getElementById('tut-check'),
-  tutPrev: document.getElementById('tut-prev'),
-  tutNext: document.getElementById('tut-next'),
-  tutExit: document.getElementById('tut-exit'),
-  tutProgress: document.getElementById('tut-progress'),
+  course: document.getElementById('course'),
+  crsTag: document.getElementById('crs-tag'),
+  crsTitle: document.getElementById('crs-title'),
+  crsArt: document.getElementById('crs-art'),
+  crsText: document.getElementById('crs-text'),
+  crsObjs: document.getElementById('crs-objs'),
+  crsHintBtn: document.getElementById('crs-hint-btn'),
+  crsHint: document.getElementById('crs-hint'),
+  crsCheck: document.getElementById('crs-check'),
+  crsRestart: document.getElementById('crs-restart'),
+  crsNext: document.getElementById('crs-next'),
+  crsExit: document.getElementById('crs-exit'),
+  crsMap: document.getElementById('crs-map'),
+  map: document.getElementById('map'),
+  mapList: document.getElementById('map-list'),
+  mapProgress: document.getElementById('map-progress'),
+  mapBarFill: document.getElementById('map-bar-fill'),
+  mapGrad: document.getElementById('map-grad'),
 };
 
-el.scramble.addEventListener('click', () => doScramble());
+el.scramble.addEventListener('click', () => {
+  if (course.active) { toast('Exit the Academy to scramble freely'); return; }
+  doScramble();
+});
 document.querySelectorAll('.btn-mini').forEach(b => {
-  b.addEventListener('click', () => { if (!anim) doScramble(+b.dataset.scramble); });
+  b.addEventListener('click', () => {
+    if (anim) return;
+    if (course.active) { toast('Exit the Academy to scramble freely'); return; }
+    doScramble(+b.dataset.scramble);
+  });
 });
 el.undo.addEventListener('click', doUndo);
-el.reset.addEventListener('click', doReset);
+el.reset.addEventListener('click', () => {
+  if (course.active) { startLevel(course.idx); toast('Level restarted'); }
+  else doReset();
+});
 function resetView() {
   if (anim) return;
   yaw = -0.785; pitch = 0.615; zoom = 1.0; panX = 0; panY = 0;
@@ -1319,11 +1756,25 @@ el.viewReset.addEventListener('click', resetView);
 document.getElementById('btn-help-top').addEventListener('click', () => show(el.help));
 document.getElementById('help-close').addEventListener('click', () => hide(el.help));
 document.getElementById('help-ok').addEventListener('click', () => hide(el.help));
-document.getElementById('btn-tutorial').addEventListener('click', () => { if (!tutorial.active) startTutorial(); });
-document.getElementById('help-tutorial').addEventListener('click', () => { if (!tutorial.active) startTutorial(); else hide(el.help); });
-el.tutExit.addEventListener('click', exitTutorial);
-el.tutNext.addEventListener('click', tutorialNext);
-el.tutPrev.addEventListener('click', () => { if (tutorial.step > 0) tutorialGoto(tutorial.step - 1); });
+document.getElementById('btn-learn').addEventListener('click', openMap);
+document.getElementById('help-learn').addEventListener('click', () => { hide(el.help); openMap(); });
+document.getElementById('map-close').addEventListener('click', () => hide(el.map));
+document.getElementById('map-continue').addEventListener('click', () => startLevel(firstOpenLevel()));
+document.getElementById('map-reset-progress').addEventListener('click', () => {
+  course.done.clear(); saveProgress(); renderMap(); toast('Course progress reset');
+});
+el.crsExit.addEventListener('click', exitCourse);
+el.crsMap.addEventListener('click', openMap);
+el.crsRestart.addEventListener('click', () => startLevel(course.idx));
+el.crsNext.addEventListener('click', () => {
+  if (course.idx >= LEVELS.length - 1) { exitCourse(); openMap(); }
+  else startLevel(course.idx + 1);
+});
+el.crsHintBtn.addEventListener('click', () => {
+  const open = el.crsHint.hidden;
+  el.crsHint.hidden = !open;
+  el.crsHintBtn.textContent = open ? 'Hide hint' : 'Show hint';
+});
 el.winAgain.addEventListener('click', () => { hide(el.win); doScramble(); });
 
 el.legendToggle.addEventListener('click', () => {
@@ -1360,6 +1811,12 @@ window.__tess = {
   pieces, commitTwist, commitTwistAxis, planesFor, isSolved, facingOf,
   rotInt, rotAxisInt, matMul4, matVec4i, I4, AXN,
   reset: () => { for (const p of pieces) { p.cur = p.solved.slice(); p.rot = I4(); } },
+  // Academy internals, exposed for test/levels.test.js
+  academy: {
+    LEVELS, CHAPTERS, course, startLevel, exitCourse, courseEvent, openMap,
+    waveSolved, pieceHome, displacedPieces, cellAtCenter, isInverseMove,
+    LAB_COMM, commitMove, levelUnlocked, firstOpenLevel,
+  },
 };
 
 // ----------------------------------------------------------------- boot
