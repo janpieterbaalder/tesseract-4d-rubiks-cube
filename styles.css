@@ -386,30 +386,75 @@ body {
 .crs-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .crs-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--accent-2); }
 .crs-head-btns { display: flex; gap: 6px; }
-.hud-course h3 { font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 6px; }
-.crs-art { display: grid; place-items: center; margin: 4px 0 10px; }
-.crs-art[hidden] { display: none; }
-.crs-art svg { width: 100%; max-width: 280px; height: 96px; display: block; }
-.crs-art [class^="ta-"], .crs-art [class*=" ta-"] { transform-box: fill-box; transform-origin: center; }
-.ta-spin { animation: taSpin 9s linear infinite; }
-.ta-dash { stroke-dasharray: 7 7; animation: taDash 1.2s linear infinite; }
-.ta-pulse { animation: taPulse 2.4s ease-in-out infinite; }
-.ta-slide { animation: taSlide 3s ease-in-out infinite; }
-.ta-slide2 { animation: taSlide2 3s ease-in-out infinite; }
-.ta-pop1 { animation: taPulse 3.6s ease-in-out infinite; }
-.ta-pop2 { animation: taPulse 3.6s ease-in-out infinite 0.9s; }
-.ta-pop3 { animation: taPulse 3.6s ease-in-out infinite 1.8s; }
-.ta-pop4 { animation: taPulse 3.6s ease-in-out infinite 2.7s; }
-@keyframes taSpin { to { transform: rotate(360deg); } }
-@keyframes taDash { to { stroke-dashoffset: -28; } }
+.hud-course h3 { font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 8px; }
+.ta-pulse { transform-box: fill-box; transform-origin: center; animation: taPulse 2.4s ease-in-out infinite; }
 @keyframes taPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-@keyframes taSlide { 0%, 100% { transform: none; } 45%, 70% { transform: translate(-66px, 0); } }
-@keyframes taSlide2 { 0%, 100% { transform: none; } 45%, 70% { transform: translate(-89px, 0); } }
-.crs-text { font-size: 12.5px; line-height: 1.6; color: var(--ink-dim); max-height: 30vh; overflow-y: auto; }
-.crs-text b { color: var(--ink); }
-.crs-text sup { font-size: 0.72em; }
 .crs-done-tag { color: var(--cube-green); }
+
+/* the professor: avatar + speech bubble */
+.tut-row { display: flex; align-items: flex-start; gap: 10px; }
+.tut-avatar { width: 58px; flex: none; }
+.tut-avatar svg { width: 58px; height: 58px; display: block; animation: tutBob 3.4s ease-in-out infinite; }
+@keyframes tutBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.tut-bubble {
+  position: relative; flex: 1; min-width: 0;
+  padding: 10px 12px; border-radius: 12px;
+  background: rgba(95, 200, 255, 0.07);
+  border: 1px solid var(--line);
+}
+.tut-bubble::before {
+  content: ""; position: absolute; left: -6px; top: 20px;
+  width: 10px; height: 10px; transform: rotate(45deg);
+  background: rgba(28, 38, 64, 0.9);
+  border-left: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.tut-bubble p { font-size: 12.5px; line-height: 1.6; color: var(--ink-dim); max-height: 26vh; overflow-y: auto; }
+.tut-bubble b { color: var(--ink); }
+.tut-bubble sup { font-size: 0.72em; }
+
+/* guided algorithm: move chips + the spelled-out expected move */
+.tut-guide { margin-top: 10px; }
+.tut-guide[hidden] { display: none; }
+.tut-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 7px; }
+.tut-chips .chip {
+  width: 24px; height: 24px; border-radius: 8px;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums;
+  color: var(--ink-faint); background: rgba(20, 28, 48, 0.4); border: 1px solid var(--line);
+}
+.tut-chips .chip.now {
+  color: var(--ink); border-color: var(--accent-2);
+  box-shadow: 0 0 9px var(--glow);
+  animation: taPulse 2.4s ease-in-out infinite;
+}
+.tut-chips .chip.done { color: var(--cube-green); border-color: rgba(0, 197, 150, 0.4); background: rgba(0, 197, 150, 0.10); }
+.tut-move { font-size: 12.5px; line-height: 1.55; color: var(--ink-dim); }
+.tut-move b { color: var(--ink); }
+.cellchip {
+  display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+  margin: 0 4px 0 1px; vertical-align: -1px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.key-hint { color: var(--ink-faint); font-size: 11px; }
+
+/* the dock button the guide wants pressed pulses golden */
+.tw.guide-hint {
+  border-color: rgba(255, 224, 110, 0.85);
+  box-shadow: 0 0 12px rgba(255, 224, 110, 0.35);
+  animation: guidePulse 1.4s ease-in-out infinite;
+}
+@keyframes guidePulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(255, 224, 110, 0.25); }
+  50% { box-shadow: 0 0 16px rgba(255, 224, 110, 0.55); }
+}
+
+/* per-lesson step progress dots */
+.tut-dots { display: flex; align-items: center; gap: 5px; }
+.tut-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(150, 175, 220, 0.22); }
+.tut-dots i.now { background: var(--accent-2); box-shadow: 0 0 7px var(--glow); }
+.tut-dots i.done { background: rgba(0, 197, 150, 0.55); }
 .crs-objs { list-style: none; margin: 11px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.crs-objs[hidden] { display: none; }
 .crs-objs li { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; line-height: 1.45; color: var(--ink-dim); }
 .crs-objs li i {
   flex: none; width: 15px; height: 15px; margin-top: 1px; border-radius: 50%;
@@ -444,16 +489,17 @@ body {
 .crs-nav { display: flex; gap: 8px; margin-left: auto; }
 .crs-nav .btn { height: 34px; padding: 0 14px; font-size: 12.5px; }
 
-/* minimised level panel: a slim bar showing only the current objective, so the
-   scene stays free while the level keeps running and scoring */
+/* minimised lesson panel: a slim bar showing only the current objective (or the
+   current guided move), so the scene stays free while the lesson keeps scoring */
 .hud-course.min { width: auto; max-width: 354px; padding: 10px 14px; cursor: pointer; }
 .hud-course.min h3,
-.hud-course.min .crs-art,
-.hud-course.min .crs-text,
+.hud-course.min .tut-row,
+.hud-course.min .tut-chips,
 .hud-course.min .crs-hint,
 .hud-course.min .crs-foot { display: none; }
 .hud-course.min .crs-head { margin-bottom: 6px; }
-.hud-course.min .crs-objs { margin: 0; }
+.hud-course.min .crs-objs,
+.hud-course.min .tut-guide { margin: 0; }
 .hud-course.min .crs-objs li:not(.now) { display: none; }
 
 /* ----------------------------------------------------------- academy: level map */
@@ -595,16 +641,18 @@ body {
   .twist-row .axis-tag { grid-column: 1 / -1; justify-content: center; font-size: 11px; }
   .twist-row .tw { width: 100%; height: 38px; }
 
-  /* level panel -> card pinned under the top bar so the bottom controls stay free */
+  /* lesson panel -> card pinned under the top bar so the bottom controls stay free */
   .hud-course {
     right: 12px; left: 12px; width: auto; bottom: auto;
     top: calc(env(safe-area-inset-top) + 64px);
     padding: 13px 14px 12px;
   }
-  .crs-text { max-height: 18vh; }
-  .crs-art svg { height: 56px; }
-  .crs-art { margin: 2px 0 7px; }
+  .tut-avatar, .tut-avatar svg { width: 44px; }
+  .tut-avatar svg { height: 44px; }
+  .tut-bubble p { max-height: 16vh; }
+  .tut-bubble::before { top: 14px; }
   .crs-objs { gap: 5px; }
+  .tut-dots { display: none; }
   .map-card { padding: 24px 16px 16px; }
 
   /* twist dock rows may include the extra grip row -> let them wrap */

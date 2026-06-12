@@ -69,7 +69,7 @@
         <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         <span>View</span>
       </button>
-      <button class="btn" id="btn-learn" title="Hypercube Academy — learn to solve, level by level (L)">
+      <button class="btn" id="btn-learn" title="Hypercube Academy — your personal teacher, lesson by lesson (L)">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5v4.5c0 1.5 3 3 7 3s7-1.5 7-3v-4.5M22 9v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Learn</span>
       </button>
@@ -98,43 +98,51 @@
       <div class="legend-grid" id="legend-grid"><!-- generated --></div>
     </aside>
 
-    <!-- Hypercube Academy: the level panel (visible while a level is running) -->
+    <!-- Hypercube Academy: the lesson panel (visible while a lesson is running) -->
     <section class="hud hud-course" id="course" hidden>
       <div class="crs-head">
         <span class="crs-tag" id="crs-tag"></span>
         <div class="crs-head-btns">
-          <button class="dock-close" id="crs-min" title="Minimise — the level stays active (M)">
+          <button class="dock-close" id="crs-min" title="Minimise — the lesson stays active (M)">
             <svg viewBox="0 0 24 24" width="13" height="13"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
-          <button class="dock-close" id="crs-map" title="All levels">
+          <button class="dock-close" id="crs-map" title="All lessons">
             <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
-          <button class="dock-close" id="crs-exit" title="Exit the Academy">✕</button>
+          <button class="dock-close" id="crs-exit" title="Leave the Academy — your own game comes back">✕</button>
         </div>
       </div>
       <h3 id="crs-title"></h3>
-      <div class="crs-art" id="crs-art" hidden></div>
-      <p class="crs-text" id="crs-text"></p>
-      <ul class="crs-objs" id="crs-objs"></ul>
+      <div class="tut-row">
+        <div class="tut-avatar" id="tut-avatar" title="Professor Tess"></div>
+        <div class="tut-bubble"><p id="tut-text"></p></div>
+      </div>
+      <ul class="crs-objs" id="crs-objs" hidden></ul>
+      <div class="tut-guide" id="tut-guide" hidden>
+        <div class="tut-chips" id="tut-chips"></div>
+        <p class="tut-move" id="tut-move"></p>
+      </div>
       <div class="crs-hint">
         <button class="crs-hint-btn" id="crs-hint-btn" hidden>Show hint</button>
         <p class="crs-hint-text" id="crs-hint" hidden></p>
       </div>
       <div class="crs-foot">
         <span class="crs-check" id="crs-check" hidden></span>
+        <div class="tut-dots" id="tut-dots"></div>
         <div class="crs-nav">
           <button class="btn" id="crs-restart">Restart</button>
-          <button class="btn btn-primary" id="crs-next" hidden>Next level</button>
+          <button class="btn" id="tut-skip" hidden>Skip demo</button>
+          <button class="btn btn-primary" id="crs-next" hidden>Continue</button>
         </div>
       </div>
     </section>
 
-    <!-- Hypercube Academy: the level map -->
+    <!-- Hypercube Academy: the lesson map -->
     <div class="overlay" id="map" hidden>
       <div class="map-card">
         <button class="dock-close map-close" id="map-close" title="Close">✕</button>
         <h2>Hypercube Academy</h2>
-        <p class="map-sub">Learn the 4D cube from zero in standalone, hands-on levels — all the way to a complete solving method. Each level runs on the real puzzle; finishing one unlocks the next. Progress is saved on this device.</p>
+        <p class="map-sub"><b>Professor Tess</b> teaches you the 4D cube hands-on: she demonstrates every move on the cube itself, lights up the blocks that matter, shows you the exact algorithms — and then hands you the controls, all the way to a full solve. Lessons run on a <b>practice copy</b>: your own game is restored the moment you leave. Progress is saved on this device.</p>
         <div class="map-progress-row">
           <div class="map-bar"><i id="map-bar-fill"></i></div>
           <span class="map-progress" id="map-progress"></span>
@@ -205,7 +213,7 @@
           </ul>
         </div>
 
-        <button class="btn btn-primary btn-wide" id="help-learn">Learn to solve — open the Academy levels</button>
+        <button class="btn btn-primary btn-wide" id="help-learn">Learn with Professor Tess — open the Academy</button>
         <button class="btn btn-ghost btn-wide" id="help-ok">Got it</button>
       </div>
     </div>
