@@ -161,6 +161,8 @@ body {
 .btn:hover { background: var(--glass-2); border-color: var(--line-strong); transform: translateY(-1px); }
 .btn:active { transform: translateY(0) scale(0.98); }
 .btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+/* .btn sets display:inline-flex, which beats the UA [hidden] rule — restore it */
+.btn[hidden] { display: none; }
 
 .btn-primary {
   color: #061025;
@@ -441,6 +443,18 @@ body {
 .crs-check[hidden] { display: none; }
 .crs-nav { display: flex; gap: 8px; margin-left: auto; }
 .crs-nav .btn { height: 34px; padding: 0 14px; font-size: 12.5px; }
+
+/* minimised level panel: a slim bar showing only the current objective, so the
+   scene stays free while the level keeps running and scoring */
+.hud-course.min { width: auto; max-width: 354px; padding: 10px 14px; cursor: pointer; }
+.hud-course.min h3,
+.hud-course.min .crs-art,
+.hud-course.min .crs-text,
+.hud-course.min .crs-hint,
+.hud-course.min .crs-foot { display: none; }
+.hud-course.min .crs-head { margin-bottom: 6px; }
+.hud-course.min .crs-objs { margin: 0; }
+.hud-course.min .crs-objs li:not(.now) { display: none; }
 
 /* ----------------------------------------------------------- academy: level map */
 .map-card {
