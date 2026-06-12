@@ -301,6 +301,12 @@ body {
 .tw:active { transform: scale(0.95); }
 .tw svg { width: 17px; height: 17px; }
 
+/* the "cell -> centre" view row: visually set apart from the twist rows,
+   because it moves the camera, never the puzzle */
+.twist-row-center { border-top: 1px solid var(--line); padding-top: 9px; }
+.tw-center { background: linear-gradient(160deg, rgba(0,197,150,0.14), rgba(20,28,48,0.25)); }
+.tw-center:hover { background: linear-gradient(160deg, rgba(0,197,150,0.28), rgba(28,38,64,0.35)); }
+
 /* ----------------------------------------------------------- overlays */
 .overlay {
   position: absolute; inset: 0; z-index: 20;
@@ -655,8 +661,11 @@ body {
   .tut-dots { display: none; }
   .map-card { padding: 24px 16px 16px; }
 
-  /* twist dock rows may include the extra grip row -> let them wrap */
+  /* twist dock rows may include the extra grip row -> let them wrap; the
+     cell -> centre view row takes its own full-width line at the bottom */
   .twist-rows { flex-wrap: wrap; }
+  .twist-row-center { flex-basis: 100%; border-top: none; padding-top: 8px; }
+  .twist-row-center .tw { grid-column: 1 / -1; }
 
   .toast { top: calc(env(safe-area-inset-top) + 66px); }
   .win-card, .help-card { width: min(420px, 92vw); padding: 28px 22px 24px; }
